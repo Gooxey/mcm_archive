@@ -1,0 +1,14 @@
+server_count: 2
+shutdown: false
+server_0:
+  server_name: server1
+  server_path: /server/survival-1.16.5
+  jar_name: spigot-1.16.5.jar
+  max_ram: 1G
+  player_active: false
+server_1:
+  server_name: server2
+  server_path: /server/survival-1.16.5_2
+  jar_name: spigot-1.16.5.jar
+  max_ram: 1G
+  player_active: false
