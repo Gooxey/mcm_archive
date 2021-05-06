@@ -1,0 +1,13 @@
+server_count: 2
+server_0:
+  server_name: proxy
+  server_path: /server/proxy
+  jar_name: velocity-1.1.5.jar
+  max_ram: 1G
+  player_active: false
+server_1:
+  server_name: lobby
+  server_path: /server/lobby
+  jar_name: fabric-server-launch.jar
+  max_ram: 1G
+  player_active: false
