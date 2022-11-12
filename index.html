@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link href="css/global.css" rel="stylesheet" type="text/css">
+        <link href="css/outer.css" rel="stylesheet" type="text/css">
+        <link href="css/home.css" rel="stylesheet" type="text/css">
+        <link href="css/server.css" rel="stylesheet" type="text/css">
+        <link href="css/scrollbar.css" rel="stylesheet" type="text/css">
+        <link href="css/toggle_switch.css" rel="stylesheet" type="text/css">
+        <script src="javascript/tabs.js"></script>
+        <script src="javascript/home.js"></script>
+        <script src="javascript/server.js"></script>
+    </head>
+    <body>
+        <header id="title" class="background_1">
+            <div id="leftContainer">
+                <div id="logoContainer">
+                    <img src="images/logo.svg" class="noselect">
+                </div>
+                <h1 class="noselect">MCManage</h1>
+            </div>
+        </header>
+        <div id="body">
+            <nav id="navbar" class="background_1">
+                <ul>
+                    <li class="selected" id="home" onclick="change_tab(this.id);">
+                        <img src="images/house-simple.svg" class="noselect">
+                    </li>
+                    <li class="notselected" id="settings" onclick="change_tab(this.id);">
+                        <img src="images/gear.svg" class="noselect">
+                    </li>
+                </ul>
+            </nav>
+            <div id="page_content" class="background_2"></div>
+
+            <div class='hidden_desc' id="home_desc">
+                <div id="home_tab">
+                    <nav class="home_tab_nav background_2">
+                        <ul id="home_tab_tabs">
+                            <li class="tabs selected"  id="panel" onclick="change_home_tab(this.id);">
+                                <img src="images/logo.svg" class="noselect">
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="background_3" id="home_main_content"></div>
+
+                    <div class="hidden_desc" id="panel_desc">
+                        <div>
+                            <table id="panel_table" class="noselect">
+                                <thead>
+                                    <tr>
+                                        <td>Name</td>
+                                        <td>Version</td>
+                                        <td>Type</td>
+                                        <td>Players</td>
+                                        <td>Status</td>
+                                    </tr>
+                                </thead>
+                                <tbody id="panel_table_body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div  class='hidden_desc' id="settings_desc">
+                <h1>Settings</h1>
+            </div>
+        </div>
+    </body>
+</html>

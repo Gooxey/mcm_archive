@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-family: 'Roboto', sans-serif;
+}
+html, body {
+    height: 100%;
+}
+:root {
+    --color-red: #FF0000;
+    --color-green: #39CC64;
+    --color-light-blue: #005ED9;
+    --color-dark-blue: #00214C;
+    --color-white-1: #BABBBF;
+    --color-white-2: #818284;
+    --color-white-3: #797979;
+    --color-text: #AAAAAA;
+    --color-background-1: #232326;
+    --color-background-2: #171719;
+    --color-background-3: #0B0B0B;
+}
+ul {
+    list-style-type: none;
+}
+
+.hidden_desc {
+    display: none;
+    visibility: hidden;
+}
+.red {
+    color: var(--color-red) !important;
+}
+.green {
+    color: var(--color-green) !important;
+}
+.background_1 {
+    background-color: var(--color-background-1) !important;
+}
+.background_2 {
+    background-color: var(--color-background-2) !important;
+}
+.background_3 {
+    background-color: var(--color-background-3) !important;
+}
+.noselect {
+    -webkit-touch-callout: none; /* iOS Safari */
+      -webkit-user-select: none; /* Safari */
+       -khtml-user-select: none; /* Konqueror HTML */
+         -moz-user-select: none; /* Old versions of Firefox */
+          -ms-user-select: none; /* Internet Explorer/Edge */
+              user-select: none; /* Non-prefixed version, currently
+                                    supported by Chrome, Edge, Opera and Firefox */
+}
+.xbutton {
+    height: 100%;
+    position: relative;
+    left: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+}
