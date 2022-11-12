@@ -22,7 +22,7 @@ use mcm_misc;
 // code using the mcm_misc library
 ```
 ### Requirements
-To use this library, rust and cargo have to be installed.
+To use this library, [rust and cargo](https://www.rust-lang.org/tools/install) have to be installed.
 
 ## Usage
 ```rust
