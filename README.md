@@ -49,7 +49,7 @@ mcm_misc::log("info", "r0", "The log was sent to the proxy!");
 ## Roadmap
 - Make the log function capable of automatically switching between fancy mode and normal mode based on the configuration.
 - Make the log function capable of writing to a log file.
-- SSwap integer returns with result returns.
+- Swap integer returns with result returns.
 - Make the config struct capable of setting its values based on a config file.
 
 
