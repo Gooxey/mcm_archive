@@ -1,5 +1,5 @@
 # mcm_misc
-Functions and structs used by applications in the MCManage Network.
+Functions and structs used by applications in the [MCManage Network](https://github.com/Gooxey/MCManage.git).
 
 ## Description
 This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, which tries to make it as easy as possible to create and manage your [Minecraft](https://www.minecraft.net) servers.
