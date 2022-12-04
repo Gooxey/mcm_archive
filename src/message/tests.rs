@@ -187,14 +187,21 @@ fn Message__spaced__from_string() {
 }
 #[test]
 fn Message__normal__from_bytes() {
-    let msg = create_normal_message();
-    let bytes_msg = msg.to_bytes().unwrap();
+    let bytes_msg = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 115, 97, 118, 101, 95, 108, 111, 103, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 114, 48, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 112, 114, 111, 120, 121, 34, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    match Message::from_bytes(bytes_msg.clone()) {
+    // strip the bytes_string from trailing characters
+    let mut striped_bytes: Vec<u8> = vec![];
+    for element in bytes_msg {
+        if element > 0 {
+            striped_bytes.push(element);
+        }
+    }
+
+    match Message::from_bytes(bytes_msg.to_vec().clone()) {
         Some(new_msg) => {
             match new_msg.to_bytes() {
                 Some(m) => {
-                    assert_eq!(m, bytes_msg, "The bytes string of the original message did not equal the bytes string of the message received by the `from_bytes` method.");
+                    assert_eq!(m, striped_bytes, "The bytes string of the original message did not equal the bytes string of the message received by the `from_bytes` method.");
                 }
                 None => {
                     assert!(false, "The message received by the `from_bytes` method could not be converted back to a bytes string.")

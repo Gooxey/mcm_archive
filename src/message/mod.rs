@@ -149,9 +149,22 @@ impl Message {
     /// # }
     /// ```
     pub fn from_bytes(bytes_string: Vec<u8>) -> Option<Self> {
-        let json_object: Value = match serde_json::from_slice(&bytes_string) {
+        // strip the bytes_string from trailing characters
+        let mut striped_bytes: Vec<u8> = vec![];
+        for element in bytes_string {
+            if element > 0 {
+                striped_bytes.push(element);
+            }
+        }
+
+        let json_object: Value = match serde_json::from_slice(&striped_bytes) {
             Ok(r) => { r }
-            Err(_) => { return None; }
+            Err(e) => {
+                println!("Error: {}", e);
+                println!("Character 80: {}", striped_bytes[79]);
+                println!("Character 80: {}", striped_bytes.len());
+                return None;
+            }
         };
         Self::from_json(json_object)
     }
