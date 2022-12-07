@@ -31,9 +31,9 @@ mod tests;
 /// # }
 /// ```
 pub fn log(msg_kind: &str, sender: &str, message: &str) -> i32 {
-    let info = "\033[34m\033[1mINFO\033[0m |";
-    let warn = "\033[33m\033[1mWARN\033[0m |";
-    let erro = "\033[31m\033[1mERRO\033[0m |";
+    let info = "\x1b[34m\x1b[1mINFO\x1b[0m |";
+    let warn = "\x1b[33m\x1b[1mWARN\x1b[0m |";
+    let erro = "\x1b[31m\x1b[1mERRO\x1b[0m |";
 
     let msg_kind_text;
     match msg_kind {
@@ -43,7 +43,7 @@ pub fn log(msg_kind: &str, sender: &str, message: &str) -> i32 {
         _ => { return 1 },
     }
 
-    let time_stamp = chrono::Local::now().format("\033[2m\033[1m%d.%m.%Y\033[0m | \033[2m\033[1m%H:%M:%S\033[0m |");
+    let time_stamp = chrono::Local::now().format("\x1b[2m\x1b[1m%d.%m.%Y\x1b[0m | \x1b[2m\x1b[1m%H:%M:%S\x1b[0m |");
 
     println!("{} {} {} | {}", time_stamp, msg_kind_text, sender, message);
     return 0;
