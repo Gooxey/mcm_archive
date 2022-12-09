@@ -159,10 +159,7 @@ impl Message {
 
         let json_object: Value = match serde_json::from_slice(&striped_bytes) {
             Ok(r) => { r }
-            Err(e) => {
-                println!("Error: {}", e);
-                println!("Character 80: {}", striped_bytes[79]);
-                println!("Character 80: {}", striped_bytes.len());
+            Err(_) => {
                 return None;
             }
         };
