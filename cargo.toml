@@ -1,6 +1,6 @@
 [package]
 name = "mcm_proxy"
-version = "1.0.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Gooxey"]
 description = "The core of the MCManage network."
@@ -9,4 +9,4 @@ repository = "https://github.com/Gooxey/mcm_proxy.git"
 license-file = "LICENSE"
 
 [dependencies]
-mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "1.0.0" }
+mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "1.0.2" }
