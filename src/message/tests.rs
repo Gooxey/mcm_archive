@@ -7,11 +7,11 @@ use super::*;
 
 /// Make a new message using text as the input strings. 
 fn create_normal_message() -> Message {
-    Message::new("save_log", "r0", "proxy", vec!["Hello world!"])
+    Message::new("save_log", MessageType::Request, "r0", "proxy", vec!["Hello world!"])
 }
 /// Make a new message using spaces as the input strings. 
 fn create_spaced_message() -> Message {
-    Message::new(" ", " ", " ", vec![" "])
+    Message::new(" ", MessageType::Request, " ", " ", vec![" "])
 }
 
 #[test]
@@ -52,7 +52,7 @@ fn Message__normal__to_string() {
 
     match msg.to_string() {
         Some(new_msg) => {
-            assert_eq!(new_msg, "{\"args\":[\"Hello world!\"],\"command\":\"save_log\",\"receiver\":\"proxy\",\"sender\":\"r0\"}", "The wrong string got returned.");
+            assert_eq!(new_msg, "{\"args\":[\"Hello world!\"],\"command\":\"save_log\",\"message_type\":\"request\",\"receiver\":\"proxy\",\"sender\":\"r0\"}", "The wrong string got returned.");
         }
         None => {
             assert!(false, "Expected a string.")
@@ -65,7 +65,7 @@ fn Message__spaced__to_string() {
 
     match msg.to_string() {
         Some(new_msg) => {
-            assert_eq!(new_msg, "{\"args\":[\" \"],\"command\":\" \",\"receiver\":\" \",\"sender\":\" \"}", "The wrong string got returned.");
+            assert_eq!(new_msg, "{\"args\":[\" \"],\"command\":\" \",\"message_type\":\"request\",\"receiver\":\" \",\"sender\":\" \"}", "The wrong string got returned.");
         }
         None => {
             assert!(false, "Expected a string.")
@@ -78,7 +78,7 @@ fn Message__normal__to_bytes() {
 
     match msg.to_bytes() {
         Some(new_msg) => {
-            let bytes_string = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 115, 97, 118, 101, 95, 108, 111, 103, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 112, 114, 111, 120, 121, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 114, 48, 34, 125];
+            let bytes_string = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 115, 97, 118, 101, 95, 108, 111, 103, 34, 44, 34, 109, 101, 115, 115, 97, 103, 101, 95, 116, 121, 112, 101, 34, 58, 34, 114, 101, 113, 117, 101, 115, 116, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 112, 114, 111, 120, 121, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 114, 48, 34, 125];
             assert_eq!(new_msg, bytes_string, "The wrong bytes string got returned.");
         }
         None => {
@@ -92,7 +92,7 @@ fn Message__spaced__to_bytes() {
 
     match msg.to_bytes() {
         Some(new_msg) => {
-            let bytes_string = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 32, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 32, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 32, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 32, 34, 125];
+            let bytes_string = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 32, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 32, 34, 44, 34, 109, 101, 115, 115, 97, 103, 101, 95, 116, 121, 112, 101, 34, 58, 34, 114, 101, 113, 117, 101, 115, 116, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 32, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 32, 34, 125];
             assert_eq!(new_msg, bytes_string, "The wrong bytes string got returned.");
         }
         None => {
@@ -187,7 +187,7 @@ fn Message__spaced__from_string() {
 }
 #[test]
 fn Message__normal__from_bytes() {
-    let bytes_msg = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 115, 97, 118, 101, 95, 108, 111, 103, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 114, 48, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 112, 114, 111, 120, 121, 34, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let bytes_msg = [123, 34, 97, 114, 103, 115, 34, 58, 91, 34, 72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 33, 34, 93, 44, 34, 99, 111, 109, 109, 97, 110, 100, 34, 58, 34, 115, 97, 118, 101, 95, 108, 111, 103, 34, 44, 34, 109, 101, 115, 115, 97, 103, 101, 95, 116, 121, 112, 101, 34, 58, 34, 114, 101, 113, 117, 101, 115, 116, 34, 44, 34, 114, 101, 99, 101, 105, 118, 101, 114, 34, 58, 34, 112, 114, 111, 120, 121, 34, 44, 34, 115, 101, 110, 100, 101, 114, 34, 58, 34, 114, 48, 34, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     // strip the bytes_string from trailing characters
     let mut striped_bytes: Vec<u8> = vec![];
