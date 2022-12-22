@@ -45,13 +45,5 @@ let msg_bytes = msg.to_bytes();
 mcm_misc::log("info", "r0", "The log was sent to the proxy!");
 ```
 
-
-## Roadmap
-- Make the log function capable of automatically switching between fancy mode and normal mode based on the configuration.
-- Make the log function capable of writing to a log file.
-- Swap integer returns with result returns.
-- Make the config struct capable of setting its values based on a config file.
-
-
 ## License
 [GNU General Public License v3.0](https://choosealicense.com/licenses/gpl-3.0/)
