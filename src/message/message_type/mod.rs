@@ -1,5 +1,5 @@
 mod tests;
-mod msg_type_error;
+pub mod msg_type_error;
 
 
 use msg_type_error::MsgTypeError;

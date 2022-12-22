@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 
 
 mod tests;
-mod message_type;
+pub mod message_type;
 
 
 use message_type::MessageType;
