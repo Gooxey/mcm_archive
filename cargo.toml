@@ -9,4 +9,4 @@ repository = "https://github.com/Gooxey/mcm_proxy.git"
 license-file = "LICENSE"
 
 [dependencies]
-mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "1.0.2" }
+mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "1.1.1" }

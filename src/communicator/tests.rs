@@ -14,7 +14,7 @@ fn communicator_init_values() -> (Arc<Config>, Sender<Message>, Receiver<Message
     (Arc::new(Config::new()), tx_com, rx_com, tx, rx)
 }
 fn new_Message() -> Message {
-    Message::new("save_log", "proxy", "r0", vec!["hello world!"])
+    Message::new("save_log", MessageType::Request, "proxy", "r0", vec!["hello world!"])
 }
 fn register_client(client: &mut TcpStream) {
     let mut buffer = [0; 110];
@@ -23,7 +23,7 @@ fn register_client(client: &mut TcpStream) {
         Ok(n) => {
             if n <= buffer.len() {
                 if Message::from_bytes(buffer.to_vec()).unwrap().command() == "get_client_type" {
-                    client.write(&Message::new("get_client_type_response", "", "", vec!["r"]).to_bytes().unwrap()).unwrap();
+                    client.write(&Message::new("get_client_type", MessageType::Response, "", "", vec!["r"]).to_bytes().unwrap()).unwrap();
                     
                     // wait for a confirmation that this connection got registered as a runner connection
                     match client.read(&mut buffer) {
@@ -127,7 +127,7 @@ fn Communicator__Client_to_InterCom() {
     let com = Communicator::start(config, sender, receiver).unwrap();
     let mut client = TcpStream::connect(Config::new().addr()).unwrap();
 
-    let message = Message::new("save_log", "r0", "some_thread", vec!["hello world!"]);
+    let message = Message::new("save_log", MessageType::Request, "r0", "some_thread", vec!["hello world!"]);
     
     register_client(&mut client);
 

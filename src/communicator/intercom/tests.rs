@@ -3,6 +3,7 @@
 
 
 use super::*;
+use mcm_misc::message::message_type::MessageType;
 
 
 // InterCom__add_handler tests
@@ -219,8 +220,8 @@ fn InterCom__Console_to_handler() {
 
     // send messages
 
-    tx.send(Message::new("test message to client 1", "", &id1, vec![])).unwrap();
-    tx.send(Message::new("test message to client 2", "", &id2, vec![])).unwrap();
+    tx.send(Message::new("test message to client 1", MessageType::Request,"", &id1, vec![])).unwrap();
+    tx.send(Message::new("test message to client 2", MessageType::Request, "", &id2, vec![])).unwrap();
     
     
     // receive messages
@@ -263,8 +264,8 @@ fn InterCom__handler_to_Console() {
     let (id2, tx2, _placeholder3) = myInterCom.add_handler('c').unwrap();
 
     // send messages
-    tx1.send(Message::new("test message from client 1", &id1, "some_thread", vec![])).unwrap();
-    tx2.send(Message::new("test message from client 2", "", &id2, vec![])).unwrap();
+    tx1.send(Message::new("test message from client 1", MessageType::Request, &id1, "some_thread", vec![])).unwrap();
+    tx2.send(Message::new("test message from client 2", MessageType::Request, "", &id2, vec![])).unwrap();
 
     // receive messages
     match rx.try_recv() {

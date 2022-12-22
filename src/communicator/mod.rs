@@ -41,6 +41,7 @@ use std::time::{Duration, Instant};
 
 use mcm_misc::log::log;
 use mcm_misc::message::Message;
+use mcm_misc::message::message_type::MessageType;
 
 use crate::config::Config;
 use self::intercom::InterCom;
@@ -668,7 +669,7 @@ impl Communicator {
 
         
         match client.write(            
-            match &Message::new("get_client_type", "communicator", "", vec![]).to_bytes() {
+            match &Message::new("get_client_type", MessageType::Request, "communicator", "", vec![]).to_bytes() {
                 Some(bytes_str) => { bytes_str }
                 None => {
                     log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed."));
@@ -701,8 +702,16 @@ impl Communicator {
                     log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed."));
                     return Err(CommunicatorError::ConnectionError());
                 }
+
+                match msg.message_type() {
+                    MessageType::Response => { /* This should happen */ }
+                    _ => {
+                        log("erro", "Communicator", &format!("Expected the first message from {ip} to be an response. This connection will be closed."));
+                        return Err(CommunicatorError::ConnectionError());
+                    }
+                }
                 
-                if msg.command() == "get_client_type_response" {
+                if msg.command() == "get_client_type" {
                     if let Some(char) = msg.args()[0].clone().chars().next() {
                         client_type = match char {
                             'r' => char,
