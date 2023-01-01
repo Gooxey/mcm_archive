@@ -1,3 +1,7 @@
+//! This module provides the [`Message struct`](Message), which is used all over the [`MCManage network`](https://github.com/Gooxey/MCManage.git) to transmit commands or
+//! information.
+
+
 use serde_json::{Value, json};
 
 
@@ -8,7 +12,7 @@ pub mod message_type;
 use message_type::MessageType;
 
 
-/// This struct represents the standard message, which is used to send commands or information between different applications in the MCManage network. \
+/// This struct represents the standard message, which is used to send commands or information between different applications in the [`MCManage network`](https://github.com/Gooxey/MCManage.git). \
 /// It also has methods to convert the given data to a JSON object, string, or bytes object.
 /// 
 /// ## Methods

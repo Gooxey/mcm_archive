@@ -1,3 +1,6 @@
+//! This module provides the [`MessageType enum`](MessageType), which is used to determine what kind of message was sent.
+
+
 mod tests;
 pub mod msg_type_error;
 
@@ -9,14 +12,24 @@ use msg_type_error::MsgTypeError;
 /// [`Message`](super::Message) was sent to receive or execute something. The second option, [`response`](MessageType::Response), is used when the [`Message`](super::Message)
 /// returns the requested data or the result of an operation. The last variant gets used in case an error occurs while executing a command.
 /// 
+/// ## Variants
+/// 
+/// | Variant                             | Description                                                                                                         |
+/// |-------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+/// | [`Request`](MessageType::Request)   | The [`message`](super::Message) sent requests an operation to be executed or a value to be returned.                |
+/// | [`Response`](MessageType::Response) | The [`message`](super::Message) sent returns the result of an operation or the value requested.                     |
+/// | [`Error`](MessageType::Error)       | The [`message`](super::Message) sent indicates that an error occurred during the execution of the provided request. |
+/// 
 /// ## Methods
 /// 
-/// | Method                                                  | Description                                                           |
-/// |---------------------------------------------------------|-----------------------------------------------------------------------|
-/// | [`from_str(...) -> Result<...>`](MessageType::from_str) | Create this enum based on a string provided.                          |
-/// | [`to_string(...) -> String`](MessageType::to_string)    | Convert the [`message's`](Message) data into a json_object.           |
+/// | Method                                                  | Description                                                        |
+/// |---------------------------------------------------------|--------------------------------------------------------------------|
+/// | [`from_str(...) -> Result<...>`](MessageType::from_str) | Create this enum based on a string provided.                       |
+/// | [`to_string(...) -> String`](MessageType::to_string)    | Convert the [`message's`](super::Message) data into a json_object. |
 pub enum MessageType {
+    /// The [`message`](super::Message) sent requests an operation to be executed or a value to be returned.
     Request,
+    /// The [`message`](super::Message) sent returns the result of an operation or the value requested.
     Response,
     Error
 }

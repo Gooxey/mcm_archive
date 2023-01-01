@@ -1,10 +1,15 @@
+//! This module provided the log function. It can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled
+//! by the [`application's config`](crate::config::Config).
+
+
 use chrono;
 
 
 mod tests;
 
 
-/// This function prints and/or saves a given string to the console or log file. A fancy mode will also be used if configured in the configuration of the application.
+/// This function can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled
+/// by the [`application's config`](crate::config::Config).
 /// 
 /// ## Parameters
 /// 
@@ -20,16 +25,6 @@ mod tests;
 /// |-----------|-----------------------------------|
 /// | `0`       | The log was written successfully. |
 /// | `1`       | msg_kind invalid.                 |
-/// 
-/// ## Example
-/// 
-/// ```
-/// use mcm_misc::log::log;
-/// 
-/// # fn main() {    /// 
-/// log("info", "r0", "Hello world!");
-/// # }
-/// ```
 pub fn log(msg_kind: &str, sender: &str, message: &str) -> i32 {
     let info = "\x1b[34m\x1b[1mINFO\x1b[0m |";
     let warn = "\x1b[33m\x1b[1mWARN\x1b[0m |";

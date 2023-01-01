@@ -7,20 +7,23 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 ### Features
 | Struct | Description |
 |--------|-------------|
-| [Message](./src/message/mod.rs) | This struct represents the standard message, which is used to send commands or information between different applications in the MCManage network. |
+| [Message](./src/message/mod.rs) | This struct represents the standard message, which is used to send commands or information between different applications in the [`MCManage network`](https://github.com/Gooxey/MCManage.git). |
 
 | Enum | Description |
 |------|-------------|
 | [MessageType](./src/message/message_type/mod.rs) | This enum describes the type of message holding this enum. |
 
-| Function | Description |
-|----------|-------------|
-| [log](./src/log/mod.rs) | This function prints and/or saves a given string to the console or log file. A fancy mode will also be used if configured in the configuration of the application. |
-
 | Trait | Description |
 |-------|-------------|
 | [Config](./src/config.rs) | Every struct implementing this trait can be used as the application's config. |
 
+| Error | Description |
+|-------|-------------|
+| [MsgTypeError](./src/message/message_type/msg_type_error.rs) | This error type gets used by the [`MessageType enum`](./src/message/message_type/mod.rs). |
+
+| Function | Description |
+|----------|-------------|
+| [log](./src/log/mod.rs) | This function can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled by the [`application's config`](./src/config.rs) |
 
 ## Installation
 Add the dependency to the `cargo.toml` file:
@@ -31,14 +34,7 @@ mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "X.Y.Z" }
 mcm_misc = { path = "/path/to/mcm_misc/" }
 ```
 
-Use the library:
-```rust
-use mcm_misc;
-
-// code using the mcm_misc library
-```
-
-### Requirements
+## Requirements
 To use this library, [rust and cargo](https://www.rust-lang.org/tools/install) have to be installed.
 
 ## License
