@@ -7,7 +7,7 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 ### Features
 | Struct | Description |
 |--------|-------------|
-| [Message](./src/message/mod.rs) | This struct represents the standard message, which is used to send commands or information between different applications in the [`MCManage network`](https://github.com/Gooxey/MCManage.git). |
+| [Message](./src/message/mod.rs) | This struct represents the standard message, which is used to send commands or information between different applications in the [MCManage network](https://github.com/Gooxey/MCManage.git). |
 
 | Enum | Description |
 |------|-------------|
@@ -19,11 +19,11 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 
 | Error | Description |
 |-------|-------------|
-| [MsgTypeError](./src/message/message_type/msg_type_error.rs) | This error type gets used by the [`MessageType enum`](./src/message/message_type/mod.rs). |
+| [MsgTypeError](./src/message/message_type/msg_type_error.rs) | This error type gets used by the [MessageType enum](./src/message/message_type/mod.rs). |
 
 | Function | Description |
 |----------|-------------|
-| [log](./src/log/mod.rs) | This function can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled by the [`application's config`](./src/config.rs) |
+| [log](./src/log/mod.rs) | This function can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled by the [application's config](./src/config.rs) |
 
 ## Installation
 Add the dependency to the `cargo.toml` file:
