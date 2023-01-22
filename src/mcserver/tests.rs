@@ -14,7 +14,7 @@ use crate::test_functions::*;
 
 // The following line is copied from the Minecraft servers EULA
 // By changing the setting below to TRUE you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).
-const AGREE_TO_EULA: bool = true;
+const AGREE_TO_EULA: bool = false;
 
 
 struct MyConfig {
