@@ -1,10 +1,10 @@
-//! Functions and structs used by applications in the MCManage Network.
+//! Functions and structs used by applications in the [MCManage Network](https://github.com/Gooxey/MCManage.git).
 //! 
 //! ## Description
 //! 
 //! This is part of the [`MCManage`](https://github.com/Gooxey/MCManage.git) project, which tries to make it as easy as possible to create and manage your [`Minecraft servers`](https://www.minecraft.net).
 //! 
-//! ### Features
+//! ### Message
 //! 
 //! | Struct                        | Description                                                                                                                                                                                    |
 //! |-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -14,18 +14,46 @@
 //! |-----------------------------------------------------|------------------------------------------------------------|
 //! | [`MessageType`](message::message_type::MessageType) | This enum describes the type of message holding this enum. |
 //! 
-//! | Trait                      | Description                                                                   |
-//! |----------------------------|-------------------------------------------------------------------------------|
-//! | [`Config`](config::Config) | Every struct implementing this trait can be used as the application's config. |
-//! 
 //! | Error                                                   | Description                                                                                |
 //! |---------------------------------------------------------|--------------------------------------------------------------------------------------------|
 //! | [`MsgTypeError`](message::message_type::msg_type_error) | This error type gets used by the [`MessageType enum`](message::message_type::MessageType). |
 //! 
-//! | Function          | Description                                                                                                                                                                                      |
-//! |-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-//! | [`log`](log::log) | This function can be used to print and save a given string to a file or the console. This can be done in a fancy mode (colored text) if enabled by the [`application's config`](config::Config). |
 //! 
+//!  ### Config
+//! 
+//! | Trait                      | Description                                                                   |
+//! |----------------------------|-------------------------------------------------------------------------------|
+//! | [`Config`](config::Config) | Every struct implementing this trait can be used as the application's config. |
+//! 
+//! 
+//! ### Log
+//! 
+//! | Macros         | Description                                                                       |
+//! |----------------|-----------------------------------------------------------------------------------|
+//! | [`log!`]       | This macro can be used to print a given string to the console.                    |
+//! | [`log_print!`] | This macro can be used to print and save a given string to a file or the console. |
+//! 
+//! 
+//! ### MCServer
+//! 
+//! | Struct                                                  | Description                                                                                                    |
+//! |---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+//! | [`MCServer`](mcserver::MCServer)                        | This struct represents an API for one Minecraft server, which got assigned with the initiation of this struct. |
+//! | [`MCServerType`](mcserver::mcserver_type::MCServerType) | With this struct, the MCServer is able to interpret messages sent by a Minecraft server.                       |
+//! 
+//! | Enum                                                          | Description                                                         |
+//! |---------------------------------------------------------------|---------------------------------------------------------------------|
+//! | [`MCServerStatus`](mcserver::mcserver_status::MCServerStatus) | This enum represents the [`MCServer's`](mcserver::MCServer) status. |
+//! 
+//! | Error                                                                                  | Description                                                                        |
+//! |----------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+//! | [`MCServerError`](mcserver::mcserver_error::MCServerError)                             | Errors used by the [`MCServer`](mcserver::MCServer) struct.                        |
+//! | [`MCServerTypeError`](mcserver::mcserver_type::mcserver_type_error::MCServerTypeError) | Errors used by the [`MCServerType`](mcserver::mcserver_type::MCServerType) struct. |
+//! 
+//! | Constant                                                                                            | Description                                                                       |
+//! |-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+//! | [`MCSERVER_TYPES_DEFAULT`](mcserver::mcserver_type::mcserver_types_default::MCSERVER_TYPES_DEFAULT) | This constant represents the default text in the config/mcserver_types.json file. |
+//!  
 //! ## Installation
 //! 
 //! Add the dependency to the `cargo.toml` file:
@@ -40,3 +68,5 @@ pub mod log;
 pub mod message;
 pub mod mcserver;
 pub mod config;
+
+mod test_functions;
