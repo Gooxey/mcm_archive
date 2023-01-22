@@ -39,9 +39,10 @@ use std::sync::mpsc::{self, Sender, Receiver, TryRecvError};
 use std::{thread, io};
 use std::time::{Duration, Instant};
 
-use mcm_misc::log::log;
+use mcm_misc::log;
 use mcm_misc::message::Message;
 use mcm_misc::message::message_type::MessageType;
+use mcm_misc::config::Config as ConfigTrait;
 
 use crate::config::Config;
 use self::intercom::InterCom;
@@ -106,7 +107,7 @@ impl Communicator {
         if let Ok(communicator) = communicator.lock() {
             alive = communicator.alive.load(Ordering::Relaxed);
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle Communicator corrupted");
         }
         return alive;
@@ -122,7 +123,7 @@ impl Communicator {
         if let Ok(communicator) = communicator.lock() {
             communicator.alive.store(value, Ordering::Relaxed);
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle Communicator corrupted");
         }
     }
@@ -138,7 +139,7 @@ impl Communicator {
         if let Ok(communicator) = communicator.lock() {
             config = communicator.config.clone()
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle Communicator corrupted");
         }
         return config;
@@ -155,7 +156,7 @@ impl Communicator {
         if let Ok(communicator) = communicator.lock() {
             intercom = communicator.intercom.clone()
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle Communicator corrupted");
         }
         return intercom;
@@ -185,7 +186,7 @@ impl Communicator {
                 Self::main(&com, bootup_status_send, true);      
             }));
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             return Err(CommunicatorError::FatalError());
         }
 
@@ -198,7 +199,7 @@ impl Communicator {
                 return Err(CommunicatorError::FailedBind());
             }
         } else {
-            log("erro", "Communicator", "The main thread crashed. The Communicator could not be started.");
+            log!("erro", "Communicator", "The main thread crashed. The Communicator could not be started.");
             return Err(CommunicatorError::FatalError());
         }
         
@@ -206,7 +207,7 @@ impl Communicator {
         if let Ok(mut ic) = Self::get_intercom(&communicator).lock() {
             ic.start(&communicator.clone());
         } else {
-            log("erro", "Communicator", "The InterCom got corrupted. The Communicator could not be started.");
+            log!("erro", "Communicator", "The InterCom got corrupted. The Communicator could not be started.");
             return Err(CommunicatorError::FatalError());
         }
 
@@ -221,7 +222,7 @@ impl Communicator {
     /// | `communicator: &Arc<Mutex<Communicator>>` | The Communicator to stop. |
     pub fn stop(communicator: &Arc<Mutex<Communicator>>) {
         let stop_time = Instant::now();
-        log("info", "Communicator", "Shutting down...");
+        log!("info", "Communicator", "Shutting down...");
 
 
         // stop the InterCom
@@ -237,12 +238,12 @@ impl Communicator {
         if let Ok(mut communicator) = communicator.lock() {
             main_thread = communicator.main_thread.take().expect("Called stop on non-running thread");
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle PoisonError in case of the Communicator being poisoned")
         }
         main_thread.join().expect("Could not join spawned thread");
 
-        log("info", "Communicator", &format!("Stopped in {} secs!", stop_time.elapsed().as_secs_f64())); 
+        log!("info", "Communicator", "Stopped in {:.3} secs!", stop_time.elapsed().as_secs_f64()); 
     }
     /// This method gets used by threads wanting to stop the [`Communicator`] and its [`InterCom`] because of a fatal error.
     /// 
@@ -269,7 +270,7 @@ impl Communicator {
     pub fn restart(communicator: &Arc<Mutex<Communicator>>, mut failcounter: Option<i32>, mut restart_time: Option<Instant>) -> Result<(), CommunicatorError> {
         if let Some(failcounter) = failcounter {
             if failcounter == *Self::get_config(&communicator).max_tries() {
-                log("erro", "Communicator", "The maximum number of restart attempts has been reached. The Communicator will no longer attempt to restart.");
+                log!("erro", "Communicator", "The maximum number of restart attempts has been reached. The Communicator will no longer attempt to restart.");
                 return Err(CommunicatorError::RestartError());
             }
         }
@@ -281,7 +282,7 @@ impl Communicator {
         } else {
             failcounter = Some(1);
         }
-        log("info", "Communicator", "Restarting...");
+        log!("info", "Communicator", "Restarting...");
             
     
         // ### STOPPING ###
@@ -300,7 +301,7 @@ impl Communicator {
         if let Ok(mut communicator) = communicator.lock() {
             main_thread = communicator.main_thread.take().expect("Called stop on non-running thread");
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle PoisonError in case of the Communicator being poisoned")
         }
         main_thread.join().expect("Could not join spawned thread");
@@ -320,7 +321,7 @@ impl Communicator {
                 Self::main(&communicator_clone, bootup_status_send, false);      
             }));
         } else {
-            log("erro", "Communicator", "The Communicator got corrupted.");
+            log!("erro", "Communicator", "The Communicator got corrupted.");
             unimplemented!("handle PoisonError in case of the Communicator being poisoned")
         }
             
@@ -333,8 +334,8 @@ impl Communicator {
                 return Err(CommunicatorError::FailedBind());
             }
         } else {
-            log("erro", "Communicator", "The main thread crashed. The Communicator will be restarted.");
-            log("erro", "Communicator", &format!("This was attempt number {} out of {}", failcounter.unwrap(),Self::get_config(&communicator).max_tries()));
+            log!("erro", "Communicator", "The main thread crashed. The Communicator will be restarted.");
+            log!("erro", "Communicator", "This was attempt number {} out of {}", failcounter.unwrap(),Self::get_config(&communicator).max_tries());
             
             drop(communicator);
             return Self::restart(&communicator.clone(), failcounter, restart_time);
@@ -345,12 +346,12 @@ impl Communicator {
             Ok(mut ic) => {
                 ic.start(&communicator.clone());
                 
-                log("info", "Communicator", &format!("Restarted in {} secs!", restart_time.unwrap().elapsed().as_secs_f64()));
+                log!("info", "Communicator", "Restarted in {:.3} secs!", restart_time.unwrap().elapsed().as_secs_f64());
                 return Ok(());
             }
             Err(_) => {
-                log("erro", "Communicator", "The InterCom got corrupted. The Communicator will be restarted.");
-                log("erro", "Communicator", &format!("This was attempt number {} out of {}", failcounter.unwrap(), Self::get_config(&communicator).max_tries()));
+                log!("erro", "Communicator", "The InterCom got corrupted. The Communicator will be restarted.");
+                log!("erro", "Communicator", "This was attempt number {} out of {}", failcounter.unwrap(), Self::get_config(&communicator).max_tries());
             }
         }
         return Self::restart(&communicator.clone(), failcounter, restart_time);
@@ -387,7 +388,7 @@ impl Communicator {
 
         let start_time = Instant::now();
         if first_start {
-            log("info", "Communicator", "Starting...");
+            log!("info", "Communicator", "Starting...");
         }
 
         let mut tries = 0;
@@ -397,29 +398,29 @@ impl Communicator {
             match TcpListener::bind(Self::get_config(&communicator).addr()) {
                 Ok(tcplistener) => {
                     if let Err(err) = tcplistener.set_nonblocking(true) {
-                        log("erro", "Communicator", &format!("Failed to activate `non-blocking mode` for the socket server! The Communicator will be restarted. Error: {err}"));
-                        log("erro", "Communicator", "The Communicator will be restarted.");
+                        log!("erro", "Communicator", "Failed to activate `non-blocking mode` for the socket server! The Communicator will be restarted. Error: {err}");
+                        log!("erro", "Communicator", "The Communicator will be restarted.");
                         
                         Self::self_restart(communicator);
                         return;
                     }
 
                     if first_start {
-                        log("info", "Communicator", &format!("Started in {} secs!", start_time.elapsed().as_secs_f64()));
+                        log!("info", "Communicator", "Started in {:.3} secs!", start_time.elapsed().as_secs_f64());
                     }
 
                     // the TCPListener got started -> reset the try-counter
                     tries = 0;
                     // the TCPListener got started -> inform the start method of the successful bootup
                     if let Err(_) = bootup_status.send(true) {
-                        log("erro", "Communicator", "The thread starting the Communicator got stopped!");
-                        log("erro", "Communicator", "The Communicator will now shut down.");
+                        log!("erro", "Communicator", "The thread starting the Communicator got stopped!");
+                        log!("erro", "Communicator", "The Communicator will now shut down.");
 
                         
                         if let Ok(communicator) = communicator.lock() {
                             communicator.alive.store(false, Ordering::Relaxed);
                         } else {
-                            log("erro", "Communicator", "The Communicator got corrupted.");
+                            log!("erro", "Communicator", "The Communicator got corrupted.");
                             unimplemented!("handle Communicator corrupted");
                         }
                         break;
@@ -437,7 +438,7 @@ impl Communicator {
                             }
                             Err(e) if e.kind() == io::ErrorKind::WouldBlock => { /* There was no client to be accepted -> ignore this */ }
                             Err(err) => {
-                                log("warn", "Communicator", &format!("Found an error while accepting new clients. Error: {err}"));
+                                log!("warn", "Communicator", "Found an error while accepting new clients. Error: {err}");
                                 /* It is now the clients responsibility to retry the connection */
                             }
                         }
@@ -448,18 +449,18 @@ impl Communicator {
                     if tries == *Self::get_config(&communicator).max_tries() {
                         // the TCPListener failed to start -> inform the start method of the failed bootup
                         if let Err(_) = bootup_status.send(false) {
-                            log("erro", "Communicator", "The Communicator failed to start.");
-                            log("erro", "Communicator", "The thread starting the Communicator got stopped.");
+                            log!("erro", "Communicator", "The Communicator failed to start.");
+                            log!("erro", "Communicator", "The thread starting the Communicator got stopped.");
 
                             return;
                         }
 
-                        log("erro", "Communicator", "The maximum number of tries has been reached.");
+                        log!("erro", "Communicator", "The maximum number of tries has been reached.");
                         return;
                     }
                     else {
-                        log("warn", "Communicator", &format!("Received an error when trying to bind the socket server. Error: {err}"));
-                        log("warn", "Communicator", &format!("This was try number {tries}. 3 seconds till the next one."));
+                        log!("warn", "Communicator", "Received an error when trying to bind the socket server. Error: {err}");
+                        log!("warn", "Communicator", "This was try number {tries}. 3 seconds till the next one.");
                         thread::sleep(Duration::new(3, 0));
                     } 
                 }
@@ -489,7 +490,7 @@ impl Communicator {
         let intercom_receiver: Receiver<Message>;
         let mut buffer = vec![0; *Self::get_config(&communicator).buffsize() as usize];
         
-        log("info", "Communicator", &format!("A new client has connected using the IP address `{}`.", ip));
+        log!("info", "Communicator", "A new client has connected using the IP address `{}`.", ip);
 
         // Register the client at the InterCom
         match Self::register_client(&mut client, ip, Self::get_intercom(&communicator), &Self::get_config(&communicator)) {
@@ -513,7 +514,7 @@ impl Communicator {
         
         // activate the nonblocking mode
         if let Err(err) = client.set_nonblocking(true) {
-            log("erro", "Communicator", &format!("Failed to activate the `nonblocking` mode for the client {id}. This Connection will be closed. Error: {err}"));
+            log!("erro", "Communicator", "Failed to activate the `nonblocking` mode for the client {id}. This Connection will be closed. Error: {err}");
             Self::close_connection_id(&mut client, &id);
             return;
         }
@@ -527,7 +528,7 @@ impl Communicator {
                         match &msg.to_bytes() {
                             Some(bytes_str) => { bytes_str }
                             None => {
-                                log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {id} to a Message. This connection will be closed."));
+                                log!("erro", "Communicator", "Failed to convert the received bytes-string from {id} to a Message. This connection will be closed.");
                                 Self::close_connection_id(&mut client, &id);
                                 return;
                             }
@@ -535,13 +536,13 @@ impl Communicator {
                     ) {
                         Ok(n) => {
                             if n == 0 {
-                                log("info", "Communicator", &format!("The client {id} disconnected."));
+                                log!("info", "Communicator", "The client {id} disconnected.");
                                 Self::close_connection_id(&mut client, &id);
                                 return;
                             }
                         }
                         Err(err) => {
-                            log("erro", "Communicator", &format!("An error occurred while writing to a message to the client {id}. This connection will be closed. Error: {err}"));
+                            log!("erro", "Communicator", "An error occurred while writing to a message to the client {id}. This connection will be closed. Error: {err}");
                             Self::close_connection_id(&mut client, &id);
                             return;
                         }
@@ -549,7 +550,7 @@ impl Communicator {
                 }
                 Err(err) if err == TryRecvError::Empty => { /* There was no message from the InterCom -> ignore this */ }
                 Err(_) => {
-                    log("erro", "Communicator", "The connection to the InterCom got interrupted. The Communicator will be restarted.");
+                    log!("erro", "Communicator", "The connection to the InterCom got interrupted. The Communicator will be restarted.");
                     Self::close_connection_id(&mut client, &id);
                     Self::self_restart(communicator);
 
@@ -561,7 +562,7 @@ impl Communicator {
             match client.read(&mut buffer) {
                 Ok(n) => {
                     if n == 0 {
-                        log("info", "Communicator", &format!("The client {id} disconnected."));
+                        log!("info", "Communicator", "The client {id} disconnected.");
                         Self::close_connection_id(&mut client, &id);
                         return;
                     }
@@ -571,20 +572,20 @@ impl Communicator {
                     if let Some(result) = Message::from_bytes(buffer.to_vec()) {
                         msg = result;
                     } else {
-                        log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {id} to a Message. This connection will be closed."));
+                        log!("erro", "Communicator", "Failed to convert the received bytes-string from {id} to a Message. This connection will be closed.");
                         Self::close_connection_id(&mut client, &id);
                         return;
                     }
                     // send this message to the InterCom
                     if let Err(err) = intercom_sender.send(msg) {
-                        log("erro", "Communicator", &format!("An error occurred while writing a message from the client {id} to the InterCom. This connection will be closed. Error: {err}"));
+                        log!("erro", "Communicator", "An error occurred while writing a message from the client {id} to the InterCom. This connection will be closed. Error: {err}");
                         Self::close_connection_id(&mut client, &id);
                         return;
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { /* The client did not sent anything -> Do nothing */ }
                 Err(err) => {
-                    log("erro", "Communicator", &format!("An error occurred while reading a message from the client {id}. This connection will be closed. Error: {err}"));
+                    log!("erro", "Communicator", "An error occurred while reading a message from the client {id}. This connection will be closed. Error: {err}");
                     Self::close_connection_id(&mut client, &id);
                     return;
                 }
@@ -611,7 +612,7 @@ impl Communicator {
         
         // deactivate the nonblocking mode
         if let Err(err) = client.set_nonblocking(false) {
-            log("erro", "Communicator", &format!("Failed to deactivate the `nonblocking` mode for the client {ip}. This Connection will be closed. Error: {err}"));
+            log!("erro", "Communicator", "Failed to deactivate the `nonblocking` mode for the client {ip}. This Connection will be closed. Error: {err}");
             return Err(CommunicatorError::ConnectionError());
         }
         
@@ -626,26 +627,26 @@ impl Communicator {
             match (*intercom).add_handler(client_type) {
                 Ok(result) => { (id, intercom_sender, intercom_receiver) = result; }
                 Err(err) => {
-                    log("erro", "Communicator", &format!("Failed to register the client {ip} as handler at the InterCom! This Connection will be closed. Error: {err}"));
+                    log!("erro", "Communicator", "Failed to register the client {ip} as handler at the InterCom! This Connection will be closed. Error: {err}");
                     return Err(CommunicatorError::ConnectionError());
                 }
             }
         } else {
-            log("erro", "Communicator", "The InterCom got corrupted. The Communicator will be restarted.");
+            log!("erro", "Communicator", "The InterCom got corrupted. The Communicator will be restarted.");
             return Err(CommunicatorError::FatalError());
         };
-        log("info", "Communicator", &format!("The client {ip} has been registered as {id}."));
+        log!("info", "Communicator", "The client {ip} has been registered as {id}.");
 
         // inform the client about the end of this registration process
         match client.write(&vec![0]) {
             Ok(n) => {
                 if n == 0 {
-                    log("info", "Communicator", &format!("The client {id} disconnected."));
+                    log!("info", "Communicator", "The client {id} disconnected.");
                     return Err(CommunicatorError::ConnectionError());
                 }
             }
             Err(err) => {
-                log("erro", "Communicator", &format!("An error occurred while writing to a message to the client {id}. This connection will be closed. Error: {err}"));
+                log!("erro", "Communicator", "An error occurred while writing to a message to the client {id}. This connection will be closed. Error: {err}");
                 return Err(CommunicatorError::ConnectionError());
             }
         }
@@ -672,26 +673,26 @@ impl Communicator {
             match &Message::new("get_client_type", MessageType::Request, "communicator", "", vec![]).to_bytes() {
                 Some(bytes_str) => { bytes_str }
                 None => {
-                    log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed."));
+                    log!("erro", "Communicator", "Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed.");
                     return Err(CommunicatorError::ConnectionError());
                 }
             }
         ) {
             Ok(n) => {
                 if n == 0 {
-                    log("info", "Communicator", &format!("The client {ip} disconnected."));
+                    log!("info", "Communicator", "The client {ip} disconnected.");
                     return Err(CommunicatorError::ConnectionError());
                 }
             }
             Err(err) => {
-                log("erro", "Communicator", &format!("An error occurred while writing to a message to the client {ip}. This connection will be closed. Error: {err}"));
+                log!("erro", "Communicator", "An error occurred while writing to a message to the client {ip}. This connection will be closed. Error: {err}");
                 return Err(CommunicatorError::ConnectionError());
             }
         }
         match client.read(&mut buffer) {
             Ok(n) => {
                 if n == 0 {
-                    log("info", "Communicator", &format!("The client {ip} disconnected."));
+                    log!("info", "Communicator", "The client {ip} disconnected.");
                     return Err(CommunicatorError::ConnectionError());
                 }
                 
@@ -699,14 +700,14 @@ impl Communicator {
                 if let Some(m) = Message::from_bytes(buffer.to_vec()) {
                     msg = m;
                 } else {
-                    log("erro", "Communicator", &format!("Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed."));
+                    log!("erro", "Communicator", "Failed to convert the received bytes-string from {ip} to a Message. This connection will be closed.");
                     return Err(CommunicatorError::ConnectionError());
                 }
 
                 match msg.message_type() {
                     MessageType::Response => { /* This should happen */ }
                     _ => {
-                        log("erro", "Communicator", &format!("Expected the first message from {ip} to be an response. This connection will be closed."));
+                        log!("erro", "Communicator", "Expected the first message from {ip} to be an response. This connection will be closed.");
                         return Err(CommunicatorError::ConnectionError());
                     }
                 }
@@ -717,23 +718,23 @@ impl Communicator {
                             'r' => char,
                             'c' => char,
                             _ => {
-                                log("erro", "Communicator", &format!("Received an invalid client_type from the client {ip}. This connection will be closed."));
+                                log!("erro", "Communicator", "Received an invalid client_type from the client {ip}. This connection will be closed.");
                                 return Err(CommunicatorError::ConnectionError());
                             }
                         }
                     } else {
-                        log("erro", "Communicator", &format!("Received an empty client_type from the client {ip}. This connection will be closed."));
+                        log!("erro", "Communicator", "Received an empty client_type from the client {ip}. This connection will be closed.");
                         return Err(CommunicatorError::ConnectionError());
                     }
                 }
                 else {
-                    log("erro", "Communicator", &format!("Received an invalid first message from the client {ip}. This connection will be closed."));
+                    log!("erro", "Communicator", "Received an invalid first message from the client {ip}. This connection will be closed.");
                     return Err(CommunicatorError::ConnectionError());
                 }
 
             }
             Err(err) => {
-                log("erro", "Communicator", &format!("An error occurred while reading a message from the client {ip}. This connection will be closed. Error: {err}"));
+                log!("erro", "Communicator", "An error occurred while reading a message from the client {ip}. This connection will be closed. Error: {err}");
                 return Err(CommunicatorError::ConnectionError());
             }
         }
@@ -752,7 +753,7 @@ impl Communicator {
     /// | `ip: &SocketAddr`        | The clients ip.          |
     fn close_connection_ip(client: &mut TcpStream, ip: &SocketAddr) {
         if let Err(err) = client.shutdown(Shutdown::Both) {
-            log("erro", "Communicator", &format!("An error occurred when trying to close the connection to the client {ip}. Error: {err}"));
+            log!("erro", "Communicator", "An error occurred when trying to close the connection to the client {ip}. Error: {err}");
         }
     }
     /// Close the socket connection given. \
@@ -766,7 +767,7 @@ impl Communicator {
     /// | `ip: &SocketAddr`        | The clients id.          |
     fn close_connection_id(client: &mut TcpStream, id: &String) {
         if let Err(err) = client.shutdown(Shutdown::Both) {
-            log("erro", "Communicator", &format!("An error occurred when trying to close the connection to the client {id}. Error: {err}"));
+            log!("erro", "Communicator", "An error occurred when trying to close the connection to the client {id}. Error: {err}");
         }
     }
 }

@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use communicator::Communicator;
 use config::Config;
 use mcm_misc::message::Message;
+use mcm_misc::config::Config as ConfigTrait;
 
 mod communicator;
 mod config;

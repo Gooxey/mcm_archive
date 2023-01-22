@@ -5,8 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender, Receiver, TryRecvError};
 use std::thread;
 use std::collections::HashMap;
-use mcm_misc::log::log;
+use mcm_misc::log;
 use mcm_misc::message::Message;
+use mcm_misc::config::Config as ConfigTrait;
 
 use crate::error::ChannelError;
 use crate::config::Config;
@@ -181,13 +182,13 @@ impl InterCom {
                     return Err(ChannelError::DesyncedChannelStorage(id))
                 }
             } else {
-                log("erro", "InterCom", &format!("The handlers map got corrupted. The Communicator will be restarted."));
+                log!("erro", "InterCom", "The handlers map got corrupted. The Communicator will be restarted.");
                 Communicator::self_restart(&self.communicator.as_ref().unwrap());
 
                 return Err(ChannelError::FatalError)
             }
         } else {
-            log("erro", "InterCom", &format!("The handler_list got corrupted. The Communicator will be restarted."));
+            log!("erro", "InterCom", "The handler_list got corrupted. The Communicator will be restarted.");
             Communicator::self_restart(&self.communicator.as_ref().unwrap());
 
             return Err(ChannelError::FatalError)
@@ -241,13 +242,13 @@ impl InterCom {
                     return Err(ChannelError::IDNotFound(id));
                 }
             } else {
-                log("erro", "InterCom", &format!("The handlers map got corrupted. The Communicator will be restarted."));
+                log!("erro", "InterCom", "The handlers map got corrupted. The Communicator will be restarted.");
                 Communicator::self_restart(&self.communicator.as_ref().unwrap());
 
                 return Err(ChannelError::FatalError);
             }
         } else {
-            log("erro", "InterCom", &format!("The handler_list got corrupted. The Communicator will be restarted."));
+            log!("erro", "InterCom", "The handler_list got corrupted. The Communicator will be restarted.");
             Communicator::self_restart(&self.communicator.as_ref().unwrap());
 
             return Err( ChannelError::FatalError);
@@ -340,7 +341,7 @@ impl InterCom {
                                 if let Ok(_) = handler.0.send(msg) { /* message got sent */ }
                             }
                         } else {
-                            log("erro", "InterCom", &format!("The list containing all handler channels got corrupted. The Communicator will be restarted."));
+                            log!("erro", "InterCom", "The list containing all handler channels got corrupted. The Communicator will be restarted.");
                             Communicator::self_restart(&communicator);
 
                             return;
@@ -348,14 +349,14 @@ impl InterCom {
                     }
                     Err(err) if err == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
                     Err(_) => {
-                        log("erro", "InterCom", &format!("The Console disconnected! The Communicator will shut down."));
+                        log!("erro", "InterCom","The Console disconnected! The Communicator will shut down.");
                         Communicator::self_stop(&communicator);
 
                         return;
                     }
                 }
             } else {
-                log("erro", "InterCom", &format!("The channel for receiving messages from the Console got corrupted. The Communicator will be restarted."));
+                log!("erro", "InterCom", "The channel for receiving messages from the Console got corrupted. The Communicator will be restarted.");
                 Communicator::self_restart(&communicator);
 
                 return;
@@ -372,7 +373,7 @@ impl InterCom {
                                     if let Ok(tx) = sender.lock() {
                                         if let Ok(_) = (*tx).send(msg) { /* message got sent */ }
                                     } else {
-                                        log("erro", "InterCom", &format!("The channel for sending messages to the Console got corrupted. The Communicator will be restarted."));
+                                        log!("erro", "InterCom", "The channel for sending messages to the Console got corrupted. The Communicator will be restarted.");
                                         Communicator::self_restart(&communicator);
     
                                         return;
@@ -380,14 +381,14 @@ impl InterCom {
                                 }
                                 Err(err) if err == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
                                 Err(_) => {
-                                    log("erro", "InterCom", &format!("The handler {handler_id} disconnected."));
+                                    log!("erro", "InterCom", "The handler {handler_id} disconnected.");
                                     if let Err(_) = Self::remove_handler_intern(&mut hl, &mut hr, &handler_id) {
                                         /* Do nothing because it must already have been removed */
                                     }
                                 }
                             }
                         } else {
-                            log("erro", "InterCom", &format!("The handler list did not match the handler_id list. The Communicator will be restarted."));
+                            log!("erro", "InterCom", "The handler list did not match the handler_id list. The Communicator will be restarted.");
                             Communicator::self_restart(&communicator);
     
                             return;
@@ -395,13 +396,13 @@ impl InterCom {
                         }
                     }
                 } else {
-                    log("erro", "InterCom", &format!("The list containing all handler ids got corrupted. The Communicator will be restarted."));
+                    log!("erro", "InterCom", "The list containing all handler ids got corrupted. The Communicator will be restarted.");
                     Communicator::self_restart(&communicator);
 
                     return;
                 }  
             } else {
-                log("erro", "InterCom", &format!("The list containing all handler channels got corrupted. The Communicator will be restarted."));
+                log!("erro", "InterCom", "The list containing all handler channels got corrupted. The Communicator will be restarted.");
                 Communicator::self_restart(&communicator);
 
                 return;
