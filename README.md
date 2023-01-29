@@ -5,6 +5,21 @@ Functions and structs used by applications in the [MCManage Network](https://git
 This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, which tries to make it as easy as possible to create and manage your [Minecraft servers](https://www.minecraft.net).
 
 
+### General
+| Error | Description |
+|-|-|
+| [MCManageError](./src/mcmanage_error.rs) | This error type provides errors used almost anywhere in the [MCManage network](https://github.com/Gooxey/MCManage.git). |
+
+| Macros | Description |
+|-|-|
+| [log!](./src/log.rs)       | This macro can be used to print a given string to the console.                    |
+| [log_print!](./src/log.rs) | This macro can be used to print and save a given string to a file or the console. |
+
+| Trait | Description |
+|-|-|
+| [ConcurrentClass](./src/concurrent_class.rs) | This trait provides standard functions used by every concurrent struct in the [MCManage network](https://github.com/Gooxey/MCManage.git). |
+
+
 ### Message
 
 | Struct | Description |
@@ -27,33 +42,25 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 | [Config](./src/config.rs) | Every struct implementing this trait can be used as the application's config. |
 
 
-### Log
-
-| Macros | Description |
-|-|-|
-| [log!](./src/log.rs)       | This macro can be used to print a given string to the console.                    |
-| [log_print!](./src/log.rs) | This macro can be used to print and save a given string to a file or the console. |
-
-
 ### MCServer
 
 | Struct | Description |
 |-|-|
-| [MCServer](./src/mcserver/mod.rs)                        | This struct represents an API for one Minecraft server, which got assigned with the initiation of this struct. |
-| [MCServerType](./src/mcserver/mcserver_type/mod.rs) | With this struct, the MCServer is able to interpret messages sent by a Minecraft server.                       |
+| [MCServer](./src/mcserver_manager/mcserver/mod.rs)                        | This struct represents an API for one Minecraft server, which got assigned with the initiation of this struct. |
+| [MCServerType](./src/mcserver_manager/mcserver/mcserver_type/mod.rs) | With this struct, the MCServer is able to interpret messages sent by a Minecraft server.                       |
 
 | Enum | Description |
 |-|-|
-| [MCServerStatus](./src/mcserver/mcserver_status.rs) | This enum represents the [MCServer's](./src/mcserver/mod.rs) status. |
+| [MCServerStatus](./src/mcserver_manager/mcserver/mcserver_status.rs) | This enum represents the [MCServer's](./src/mcserver_manager/mcserver/mod.rs) status. |
 
 | Error | Description |
 |-|-|
-| [MCServerError](./src/mcserver/mcserver_error.rs)                             | Errors used by the [MCServer](./src/mcserver/mod.rs) struct.                        |
-| [MCServerTypeError](./src/mcserver/mcserver_type/mcserver_type_error.rs) | Errors used by the [MCServerType](./src/mcserver/mcserver_type/mod.rs) struct. |
+| [MCServerError](./src/mcserver_manager/mcserver/mcserver_error.rs)                             | Errors used by the [MCServer](./src/mcserver_manager/mcserver/mod.rs) struct.                        |
+| [MCServerTypeError](./src/mcserver_manager/mcserver/mcserver_type/mcserver_type_error.rs) | Errors used by the [MCServerType](./src/mcserver_manager/mcserver/mcserver_type/mod.rs) struct. |
 
 | Constant | Description |
 |-|-|
-| [MCSERVER_TYPES_DEFAULT](./src/mcserver/mcserver_type/mcserver_types_default.rs) | This constant represents the default text in the config/mcserver_types.json file. |
+| [MCSERVER_TYPES_DEFAULT](./src/mcserver_manager/mcserver/mcserver_type/mcserver_types_default.rs) | This constant represents the default text in the config/mcserver_types.json file. |
  
 
 ## Installation

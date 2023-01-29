@@ -119,7 +119,7 @@ impl MCServerType {
             }
         } else {
             return Err(MCServerTypeError::ServerTypeNotFound(self.server_type.clone()));
-        }  
+        }
     }
     /// Get a message from the `config/mcserver_types.json` file, which can be found under this MCServer's type ( vanilla, purpur, etc. ) and its
     /// identifier ( started, player_joined, etc. ). \

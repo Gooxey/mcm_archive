@@ -223,7 +223,8 @@ fn MCServer__stop() {
 fn MCServer__restart() {
     let mcserver = new_mcserver::<MyConfig>();
 
-    MCServer::start(&mcserver, false).unwrap();
+    MCServer::start(&mcserver, true).unwrap();
+    MCServer::wait_for_start_confirm(&mcserver);
     loop {
         if let Err(_) = MCServer::restart(&mcserver) {
         }

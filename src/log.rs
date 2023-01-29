@@ -102,7 +102,12 @@ macro_rules! log {
                     std::io::ErrorKind::NotFound => {
                         std::fs::create_dir("logs").unwrap(); // no error is expected, so we unwrap here
 
-                        let mut log_file = std::fs::File::options().append(true).create_new(true).open("logs/log.txt").unwrap(); // no error is expected, so we unwrap here
+                        let mut log_file;
+                        if let Ok(file) = std::fs::File::options().append(true).create_new(true).open("logs/log.txt") {
+                            log_file = file;
+                        } else {
+                            log_file = std::fs::File::options().append(true).open("logs/log.txt").unwrap();
+                        }
                         loop {
                             if let Ok(_) = std::io::Write::write_all(&mut log_file, log.as_bytes()) {
                                 break;

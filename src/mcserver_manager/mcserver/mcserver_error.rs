@@ -3,6 +3,8 @@
 
 use std::io;
 use thiserror::Error;
+use crate::mcmanage_error::MCManageError;
+
 use super::mcserver_type::mcserver_type_error::MCServerTypeError;
 
 
@@ -33,5 +35,7 @@ pub enum MCServerError {
     NotStarted,
     /// An error produced by the [`MCServerType struct`](super::mcserver_type::mcserver_type_error::MCServerTypeError)
     #[error(transparent)]
-    TypeError(#[from] MCServerTypeError)
+    TypeError(#[from] MCServerTypeError),
+    #[error(transparent)]
+    MCManageError(#[from] MCManageError)
 }

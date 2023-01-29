@@ -121,7 +121,7 @@ fn MCServerType__get_player_left() {
 fn MCServerType__get_player_name_joined() {
     let my_mcserver_type = start_test();
 
-    let name = my_mcserver_type.get_player_name_joined("[11:48:16] [Server thread/INFO]: Gooxey joined the game").unwrap();
+    let name = my_mcserver_type.get_player_name_joined("[13:53:51 INFO]: Gooxey joined the game").unwrap();
     
     assert_eq!(name, "Gooxey");
 
@@ -131,7 +131,7 @@ fn MCServerType__get_player_name_joined() {
 fn MCServerType__get_player_name_left() {
     let my_mcserver_type = start_test();
 
-    let name = my_mcserver_type.get_player_name_left("[12:30:46] [Server thread/INFO]: Gooxey left the game").unwrap();
+    let name = my_mcserver_type.get_player_name_left("[13:53:51 INFO]: Gooxey left the game").unwrap();
     
     assert_eq!(name, "Gooxey");
 

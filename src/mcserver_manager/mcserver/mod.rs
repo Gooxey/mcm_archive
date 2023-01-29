@@ -9,8 +9,10 @@ use std::sync::{Mutex, Arc, MutexGuard};
 use std::thread;
 use std::time::Instant;
 
+use crate::concurrent_class::ConcurrentClass;
 use crate::log;
 use crate::config::Config;
+use crate::mcmanage_error::MCManageError;
 use self::mcserver_error::MCServerError;
 use self::mcserver_type::MCServerType;
 use self::mcserver_status::MCServerStatus;
@@ -68,15 +70,23 @@ pub struct MCServer<C: Config> {
     /// The list of players on the Minecraft server.
     players: Vec<String>
 }
-impl<C: Config> MCServer<C> {
-    /// The default state of the MCServer struct.
-    fn default_state(name: String, arg: Vec<String>, path: String, mcserver_type: Arc<Mutex<MCServerType>>, config: Arc<C>) -> Self {
+impl<C: Config> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
+    fn get_config_unlocked(class_lock: &MutexGuard<MCServer<C>>) -> Arc<C> {
+        return class_lock.config.clone();
+    }
+    fn get_name_unlocked(class_lock: &MutexGuard<MCServer<C>>) -> String {
+        return class_lock.name.clone();
+    }
+    fn get_name_poison_error(class_lock: &MutexGuard<MCServer<C>>) -> String {
+        return class_lock.name.clone();
+    }
+    fn get_default_state(class_lock: &MutexGuard<MCServer<C>>) -> MCServer<C> {
         Self {
-            name,
-            arg,
-            path,
-            mcserver_type,
-            config,
+            name: class_lock.name.clone(),
+            arg: class_lock.arg.clone(),
+            path: format!("servers/{}", class_lock.name),
+            mcserver_type: class_lock.mcserver_type.clone(),
+            config: class_lock.config.clone(),
 
             minecraft_server: None,
             main_thread: None,
@@ -86,6 +96,145 @@ impl<C: Config> MCServer<C> {
             players: vec![],
         }
     }
+    fn start(mcserver: &Arc<Mutex<MCServer<C>>>, log_messages: bool) -> Result<(), MCManageError> {
+        let mut mcserver_lock = Self::get_lock(mcserver);
+        let mcserver_clone = mcserver.clone();
+        
+        let name = mcserver_lock.name.clone();
+
+        mcserver_lock.status = MCServerStatus::Starting;
+
+        match Command::new("java")
+            .current_dir(&mcserver_lock.path)
+            .args(&mcserver_lock.arg)
+            .stderr(Stdio::piped())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+        {
+            Ok(minecraft_server) => {
+                mcserver_lock.minecraft_server = Some(minecraft_server);
+            }
+            Err(err) => {
+                if log_messages { log!("erro", &name, "An error occurred while starting the Minecraft Server {name}. Error: {err}"); }
+                Self::reset_unlocked(&mut mcserver_lock);
+                return Err(MCManageError::FatalError)
+            }
+        }
+        
+        mcserver_lock.alive = true;
+
+        mcserver_lock.main_thread = Some(thread::spawn(move ||
+            Self::main(mcserver_clone, log_messages)
+        ));
+
+        return Ok(());
+    }
+    fn stop(mcserver: &Arc<Mutex<MCServer<C>>>, log_messages: bool) -> Result<(), MCManageError> {
+        let mut mcserver_lock;
+        if let Some(lock) = Self::get_lock_pure(mcserver, false) {
+            mcserver_lock = lock;
+        } else {
+            if log_messages { log!("erro", "MCServer", "A MCServer got corrupted."); }
+            MCServer::reset(&mcserver);
+            return Err(MCManageError::FatalError);
+        }
+
+
+        let name = mcserver_lock.name.clone();
+        let stop_time = Instant::now();
+
+        // check if the MCServer has started
+        if !log_messages {
+        } else if mcserver_lock.status != MCServerStatus::Started {
+            return Err(MCManageError::NotReady);
+        } else if mcserver_lock.status == MCServerStatus::Stopped {
+            // do nothing since this server is already stopped
+            return Ok(());
+        }
+        
+
+        if log_messages { log!("info", &name, "Stopping..."); }
+
+        mcserver_lock.status = MCServerStatus::Stopping;
+
+        if let Some(mut minecraft_server ) = mcserver_lock.minecraft_server.take() {
+            // send the stop command to the Minecraft server
+            if let Some(stdin) = minecraft_server.stdin.as_mut() {
+                if let Err(err) = stdin.write_all(format!("stop\n").as_bytes()) {
+                    if log_messages { log!("erro", &name, "An error occurred while writing the input `stop` to the Minecraft server. The process will be kill forcefully. Error: {err}"); }
+                    if let Err(_) = minecraft_server.kill() {}
+                }
+            } else {
+                if log_messages { log!("erro", &name, "The stdin pipe of this Minecraft server process does not exist. The process will be kill forcefully."); }
+                if let Err(_) = minecraft_server.kill() {}
+            }
+
+            // wait for the Minecraft server to finish
+            if let Err(err) = minecraft_server.wait() {
+                if log_messages { log!("erro", &name, "An error occurred while waiting on the Minecraft server to finish. Error: {err}"); }
+                Self::reset_unlocked(&mut mcserver_lock);
+                return Err(MCManageError::FatalError);
+            }
+        } else {
+            if log_messages { log!("erro", &name, "Could not get the Minecraft server. It was already taken."); }
+            Self::reset_unlocked(&mut mcserver_lock);
+            return Err(MCManageError::FatalError);
+        }
+
+        // give the shutdown command
+        mcserver_lock.alive = false;
+        
+        // acquire the main thread
+        let main_thread;
+        if let Some(main) = mcserver_lock.main_thread.take() {
+            main_thread = main;
+        } else {
+            if log_messages { log!("erro", &name, "Could not take the main thread. It was already taken."); }
+            Self::reset_unlocked(&mut mcserver_lock);
+            return Err(MCManageError::FatalError);
+        }
+
+        drop(mcserver_lock);
+
+        // wait for the main thread to finish
+        if let Err(_) = main_thread.join() {
+            if log_messages { log!("erro", "MCServer", "Failed to join the main thread."); }
+            MCServer::reset(&mcserver);
+            return Err(MCManageError::FatalError);
+        }
+
+        // set the MCServers status to stopped
+        if let Ok(mut mcserver_lock) = mcserver.lock() {
+            mcserver_lock.status = MCServerStatus::Stopped;
+        } else {
+            if log_messages { log!("erro", &name, "This MCServer got corrupted."); }
+            MCServer::reset(&mcserver);
+            return Err(MCManageError::FatalError);
+        }
+
+        if log_messages { log!("info", &name, "Stopped in {:.3} secs!", stop_time.elapsed().as_secs_f64()); }
+
+        Ok(())
+    }
+    fn wait_for_start_confirm(mcserver: &Arc<Mutex<MCServer<C>>>) {
+        loop {
+            let mcserver_lock;
+            if let Ok(lock) = Self::get_lock_nonblocking(mcserver) {
+                mcserver_lock = lock;
+            } else {
+                return;
+            }
+
+            if let MCServerStatus::Started = mcserver_lock.status {
+                return;
+            } else {
+                thread::sleep(*mcserver_lock.config.refresh_rate());
+            }
+        }
+    }
+}
+impl<C: Config> MCServer<C> {
     /// Create a new [`MCServer`] instance.
     /// 
     /// ## Parameters
@@ -98,36 +247,20 @@ impl<C: Config> MCServer<C> {
     /// | `mcserver_type: MCServerType` | The type of the Minecraft server. ( vanilla, purpur, ... )                                                   |
     /// | `config: &Arc<C>`             | The application's config.                                                                                    |
     pub fn new(name: &str, arg: &str, mcserver_type: MCServerType, config: &Arc<C>) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self::default_state(
-            name.to_owned(),
-            arg.split(" ").map(String::from).collect(),
-            format!("servers/{}", name),
-            Arc::new(Mutex::new(mcserver_type)),
-            config.clone()
-        )))
-    }
-    /// Reset the MCServer to its default state.The MCServer provided has to be locked behind a mutex. \
-    /// If you want to unlock the MCServer yourself use the [`reset_unlocked function`](MCServer::reset_unlocked).
-    fn reset(mcserver: &Arc<Mutex<MCServer<C>>>) {
-        match mcserver.lock() {
-            Ok(mut mcserver) => {
-                Self::reset_unlocked(&mut mcserver);
-            }
-            Err(mcserver) => {
-                Self::reset_unlocked(&mut mcserver.into_inner());
-            }
-        }
-    }
-    /// Reset the MCServer to its default state. The MCServer provided has to be unlocked. \
-    /// If you do not want to unlock the MCServer yourself use the [`reset function`](MCServer::reset).
-    fn reset_unlocked(mcserver: &mut MutexGuard<MCServer<C>>) {
-        **mcserver = Self::default_state(
-            mcserver.name.clone(),
-            mcserver.arg.clone(),
-            mcserver.path.clone(),
-            mcserver.mcserver_type.clone(),
-            mcserver.config.clone()
-        )
+        Arc::new(Mutex::new(Self {
+            name: name.to_owned(),
+            arg: arg.split(" ").map(String::from).collect(),
+            path: format!("servers/{}", name),
+            mcserver_type: Arc::new(Mutex::new(mcserver_type)),
+            config: config.clone(),
+
+            minecraft_server: None,
+            main_thread: None,
+            
+            alive: false,
+            status: MCServerStatus::Stopped,
+            players: vec![],
+        }))
     }
 
     /// Get the status of the [`MCServer`].
@@ -166,298 +299,6 @@ impl<C: Config> MCServer<C> {
         }
     }
 
-    /// Get the given mcserver's lock. \
-    /// This function will block the thread calling until the lock is claimed. If an error occurs, this function will return None and do no error recovering. \
-    /// To guarantee getting the lock use the [`get_lock`](Self::get_lock) function.
-    /// 
-    /// ## Parameters
-    /// 
-    /// | Parameter                         | Description                                              |
-    /// |-----------------------------------|----------------------------------------------------------|
-    /// | `mcserver: &Arc<Mutex<MCServer>>` | The MCServer to obtain the lock from.                    |
-    /// | `error_message: bool`             | Controls whether or not an error message should be send. |
-    fn get_lock_pure(mcserver: &Arc<Mutex<MCServer<C>>>, error_message: bool) -> Option<MutexGuard<MCServer<C>>> {
-        match mcserver.lock() {
-            Ok(mcserver_lock) => {
-                return Some(mcserver_lock);
-            }
-            Err(erro) => { 
-                if error_message { let name = erro.into_inner().name.clone(); log!("erro", name, "This MCServer got corrupted! It will be restarted."); }
-                return None;
-            }
-        }
-    }
-    /// Get the given mcserver's lock. \
-    /// This function will block the thread calling until the lock is claimed. If an error occurs, this function will restart the mcserver. \
-    /// Use the [`get_lock_nonblocking`](Self::get_lock_nonblocking) function to run this restart in a different thread.
-    fn get_lock(mcserver: &Arc<Mutex<MCServer<C>>>) -> MutexGuard<MCServer<C>> {
-        if let Some(mcserver_lock) = Self::get_lock_pure(mcserver, true) {
-            return mcserver_lock;
-        }
-        if let Err(_) = Self::restart(mcserver) {
-            Self::reset(&mcserver);
-        }
-        
-        return Self::get_lock(mcserver);
-    }
-    /// Get the given mcserver's lock. \
-    /// This function will block the thread calling until the lock is claimed. \
-    /// If an error occurs, this function will restart the mcserver in a different thread and return an error.\
-    /// To guarantee getting the lock use the [`get_lock`](Self::get_lock) function.
-    fn get_lock_nonblocking(mcserver: &Arc<Mutex<MCServer<C>>>) -> Result<MutexGuard<MCServer<C>>, MCServerError> {
-        let mcs = mcserver.clone();
-        if let Some(mcserver_lock) = Self::get_lock_pure(mcserver, true) {
-            return Ok(mcserver_lock);
-        }
-        thread::spawn(move || {
-            if let Err(_) = Self::restart(&mcs) {
-                Self::reset(&mcs);
-            }
-        });
-
-        return Err(MCServerError::CriticalError);
-    }
-
-    /// Start the [`MCServer`].
-    /// 
-    /// ## Parameters
-    /// 
-    /// | Parameter                           | Description                                                             |
-    /// |-------------------------------------|-------------------------------------------------------------------------|
-    /// | `mcserver: &Arc<Mutex<MCServer>>`   | A reference to the MCServer struct which started this Minecraft server. |
-    /// | `restart: bool`                     | Controls whether or not the start is used in a restart.                 |
-    pub fn start(mcserver: &Arc<Mutex<MCServer<C>>>, restart: bool) -> Result<(), MCServerError>{
-        let mut mcserver_lock = Self::get_lock(mcserver);
-        let mcserver_clone = mcserver.clone();
-        
-        let name = mcserver_lock.name.clone();
-
-        mcserver_lock.status = MCServerStatus::Starting;
-
-        match Command::new("java")
-            .current_dir(&mcserver_lock.path)
-            .args(&mcserver_lock.arg)
-            .stderr(Stdio::piped())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-        {
-            Ok(minecraft_server) => {
-                mcserver_lock.minecraft_server = Some(minecraft_server);
-            }
-            Err(err) => {
-                log!("erro", &name, "An error occurred while starting the Minecraft Server {name}. Error: {err}");
-                Self::reset_unlocked(&mut mcserver_lock);
-                return Err(MCServerError::FailedCommandSpawn(name.clone(), err))
-            }
-        }
-        
-        mcserver_lock.alive = true;
-
-        let silent = restart;
-        mcserver_lock.main_thread = Some(thread::spawn(move ||
-            Self::main(mcserver_clone, silent)
-        ));
-
-        Ok(())
-    }
-    /// Stop the [`MCServer`].
-    /// 
-    /// ## Parameters
-    /// 
-    /// | Parameter                         | Description                                                             |
-    /// |-----------------------------------|-------------------------------------------------------------------------|
-    /// | `mcserver: &Arc<Mutex<MCServer>>` | A reference to the MCServer struct which started this Minecraft server. |
-    /// | `restart: bool`                     | Controls whether or not the start is used in a restart.                 |
-    pub fn stop(mcserver: &Arc<Mutex<MCServer<C>>>, restart: bool) -> Result<(), MCServerError> {
-        let mut mcserver_lock;
-        if let Some(lock) = Self::get_lock_pure(mcserver, false) {
-            mcserver_lock = lock;
-        } else {
-            if !restart { log!("erro", "MCServer", "A MCServer got corrupted."); }
-            MCServer::reset(&mcserver);
-            return Err(MCServerError::FatalError);
-        }
-
-
-        let name = mcserver_lock.name.clone();
-        let stop_time = Instant::now();
-
-        // check if the MCServer has started
-        if restart {
-        } else if mcserver_lock.status != MCServerStatus::Started {
-            return Err(MCServerError::NotStarted);
-        } else if mcserver_lock.status == MCServerStatus::Stopped {
-            // do nothing since this server is already stopped
-            return Ok(());
-        }
-        
-
-        if !restart { log!("info", &name, "Stopping..."); }
-
-        mcserver_lock.status = MCServerStatus::Stopping;
-
-        if let Some(mut minecraft_server ) = mcserver_lock.minecraft_server.take() {
-            // send the stop command to the Minecraft server
-            if let Some(stdin) = minecraft_server.stdin.as_mut() {
-                if let Err(err) = stdin.write_all(format!("stop\n").as_bytes()) {
-                    if !restart { log!("erro", &name, "An error occurred while writing the input `stop` to the Minecraft server. The process will be kill forcefully. Error: {err}"); }
-                    if let Err(_) = minecraft_server.kill() {}
-                }
-            } else {
-                if !restart { log!("erro", &name, "The stdin pipe of this Minecraft server process does not exist. The process will be kill forcefully."); }
-                if let Err(_) = minecraft_server.kill() {}
-            }
-
-            // wait for the Minecraft server to finish
-            if let Err(err) = minecraft_server.wait() {
-                if !restart { log!("erro", &name, "An error occurred while waiting on the Minecraft server to finish. Error: {err}"); }
-                Self::reset_unlocked(&mut mcserver_lock);
-                return Err(MCServerError::FatalError);
-            }
-        } else {
-            if !restart { log!("erro", &name, "Could not get the Minecraft server. It was already taken."); }
-            Self::reset_unlocked(&mut mcserver_lock);
-            return Err(MCServerError::FatalError);
-        }
-
-        // give the shutdown command
-        mcserver_lock.alive = false;
-        
-        // acquire the main thread
-        let main_thread;
-        if let Some(main) = mcserver_lock.main_thread.take() {
-            main_thread = main;
-        } else {
-            if !restart { log!("erro", &name, "Could not take the main thread. It was already taken."); }
-            Self::reset_unlocked(&mut mcserver_lock);
-            return Err(MCServerError::FatalError);
-        }
-
-        drop(mcserver_lock);
-
-        // wait for the main thread to finish
-        if let Err(_) = main_thread.join() {
-            if !restart { log!("erro", "MCServer", "Failed to join the main thread."); }
-            MCServer::reset(&mcserver);
-            return Err(MCServerError::FatalError);
-        }
-
-        // set the MCServers status to stopped
-        if let Ok(mut mcserver_lock) = mcserver.lock() {
-            mcserver_lock.status = MCServerStatus::Stopped;
-        } else {
-            if !restart { log!("erro", &name, "This MCServer got corrupted."); }
-            MCServer::reset(&mcserver);
-            return Err(MCServerError::FatalError);
-        }
-
-        if !restart { log!("info", &name, "Stopped in {:.3} secs!", stop_time.elapsed().as_secs_f64()); }
-
-        Ok(())
-    }
-    /// Restart the [`MCServer`]. \
-    /// This function will re-initiate the provided MCServer.
-    pub fn restart(mcserver: &Arc<Mutex<MCServer<C>>>) -> Result<(), MCServerError> {
-        let restart_time = Instant::now();
-        
-        // get all the necessary data from the old struct
-        let name;
-        let config;
-        match mcserver.lock() {
-            Ok(mut mcserver) => {
-                // check if the MCServer has started
-                if mcserver.status != MCServerStatus::Started {
-                    return Err(MCServerError::NotStarted);
-                }
-
-                mcserver.status = MCServerStatus::Restarting;
-                
-                name = mcserver.name.clone();
-                config = mcserver.config.clone();
-            }
-            Err(mcs) => {
-                log!("erro", "MCServer", "Found that a MCServer was corrupted during restart. It will be reset.");
-                Self::reset(&mcserver);
-
-                let mcs = mcs.into_inner();
-                name = mcs.name.clone();
-                config = mcs.config.clone();
-            }
-            
-        }
-
-        log!("info", &name, "Restarting...");
-
-
-        // ### STOPPING ###
-
-        // Try to stop the mcserver until it succeeds, and reset it afterwards
-        loop {
-            match Self::stop(&mcserver, true) {
-                Ok(_) => {
-                    MCServer::reset(&mcserver);
-                    break;
-                }
-                Err(err) => {
-                    match err {
-                        MCServerError::FatalError => {
-                            break;
-                        }
-                        _ => {
-                            // The only case in which this loop never ends is when the Minecraft server gets deadlocked
-                            // and therefore never completes its startup process.
-                            thread::sleep(*config.refresh_rate());
-                        }
-                    }
-                }
-            }
-        }
-        
-
-        // ### STARTING ###
-
-
-        // Try to start the mcserver until it succeeds or the fail limit is reached
-        let failcounter = 0;
-        loop {
-            if let Err(_) = Self::start(&mcserver, true) {
-                if failcounter == *config.max_tries() {
-                    log!("erro", &name, "The maximum number of start attempts has been reached. The MCServer will no longer attempt to start.");
-                    MCServer::reset(&mcserver);
-                    return Err(MCServerError::FatalError);
-                } else {
-                    log!("erro", &name, "This was attempt number {} out of {}", failcounter, config.max_tries());
-                }
-                thread::sleep(*config.refresh_rate());
-            } else {
-                break;
-            }
-        }
-
-        // wait for the Minecraft server to complete its startup
-        loop {
-            if let MCServerStatus::Started = Self::get_status(&mcserver)? {
-                log!("info", &name, "Restarted in {:.3} secs!", restart_time.elapsed().as_secs_f64());
-                return Ok(());
-            } else {
-                thread::sleep(*config.refresh_rate());
-            }
-        }
-    }
-    /// This method gets used to restart the [`MCServer`] without blocking the thread calling it. \
-    /// If you want to block the thread calling this function use the [`restart function`](MCServer::restart).
-    fn self_restart(mcserver: &Arc<Mutex<MCServer<C>>>) {
-        let mcs = mcserver.clone();
-        thread::spawn(move || 
-            loop {
-                if let Ok(_) = Self::restart(&mcs) {
-                    break;
-                }
-            }
-        );
-    }
-
     /// Send a given string to the Minecraft server as an input. \
     /// It is guaranteed that the string given will be sent to the MCServer, but this can cause the blocking of the thread calling this function due to the MCServer restarting.
     /// 
@@ -476,7 +317,7 @@ impl<C: Config> MCServer<C> {
                     log!("erro", mcserver_lock.name, "An error occurred while writing the input `{input}` to the Minecraft server. This MCServer will be restarted. Error: {err}");
                     loop {
                         if let Err(erro) = Self::restart(mcserver) {
-                            if let MCServerError::NotStarted = erro {
+                            if let MCManageError::NotReady = erro {
                                 thread::sleep(*mcserver_lock.config.refresh_rate());
                             } else {
                                 break;
@@ -491,7 +332,7 @@ impl<C: Config> MCServer<C> {
                 log!("erro", mcserver_lock.name, "The stdin pipe of this Minecraft server process does not exist. This MCServer will be restarted.");
                 loop {
                     if let Err(erro) = Self::restart(mcserver) {
-                        if let MCServerError::NotStarted = erro {
+                        if let MCManageError::NotReady = erro {
                             thread::sleep(*mcserver_lock.config.refresh_rate());
                         } else {
                             break;
@@ -511,7 +352,7 @@ impl<C: Config> MCServer<C> {
     /// This represents the main thread of this MCServer struct. \
     /// It is responsible for the reading and interpreting part. Through this function, the application is able to understand what is happening on this server and what it
     /// should do next. 
-    fn main(mcserver: Arc<Mutex<MCServer<C>>>, silent: bool) {
+    fn main(mcserver: Arc<Mutex<MCServer<C>>>, log_messages: bool) {        
         let mut started = false;
         let start_time = Instant::now();
         let mut agreed_to_eula = false;
@@ -523,7 +364,7 @@ impl<C: Config> MCServer<C> {
             return;
         }
 
-        if !silent {
+        if log_messages {
             log!("info", mcserver_lock.name, "Starting...");
         }
         
@@ -561,7 +402,7 @@ impl<C: Config> MCServer<C> {
             drop(mcserver_lock);
             
             if !started {
-                match Self::check_started(&line, start_time, &mcserver, silent) {
+                match Self::check_started(&line, start_time, &mcserver, log_messages) {
                     Ok(result) => started = result,
                     Err(erro) => {
                         match erro {
@@ -655,7 +496,7 @@ impl<C: Config> MCServer<C> {
     /// | `start_time: Instant`                | The time the Minecraft server was started.                |
     /// | `mcserver: &Arc<Mutex<MCServer<C>>>` | The MCServer to check for.                                |
     /// | `silent: bool`                       | Controls whether or not a started-message should be sent. |
-    fn check_started(line: &str, start_time: Instant, mcserver: &Arc<Mutex<MCServer<C>>>, silent: bool) -> Result<bool, MCServerError> {
+    fn check_started(line: &str, start_time: Instant, mcserver: &Arc<Mutex<MCServer<C>>>, log_messages: bool) -> Result<bool, MCServerError> {
         let mut mcserver_lock = Self::get_lock_nonblocking(&mcserver)?;
         let mcserver_type = Self::get_mcserver_type(&mcserver_lock, &mcserver)?;
         
@@ -665,7 +506,7 @@ impl<C: Config> MCServer<C> {
             }
         }
 
-        if !silent {
+        if log_messages {
             log!("info", mcserver_lock.name, "Started in {:.3} secs!", start_time.elapsed().as_secs_f64());
         }
         mcserver_lock.status = MCServerStatus::Started;
