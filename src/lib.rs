@@ -36,9 +36,9 @@
 //! 
 //! ### Config
 //! 
-//! | Trait                                | Description                                                                   |
-//! |--------------------------------------|-------------------------------------------------------------------------------|
-//! | [`ConfigTrait`](config::ConfigTrait) | Every struct implementing this trait can be used as the application's config. |
+//! | Trait                                      | Description                                                                   |
+//! |--------------------------------------------|-------------------------------------------------------------------------------|
+//! | [`ConfigTrait`](config_trait::ConfigTrait) | Every struct implementing this trait can be used as the application's config. |
 //! 
 //! 
 //! ### MCServer
@@ -64,7 +64,7 @@
 //! ## Installation
 //! 
 //! Add the dependency to the `cargo.toml` file:
-//! ```
+//! ```text
 //! [dependencies]
 //! mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "X.Y.Z" }
 //!     or

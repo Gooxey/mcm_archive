@@ -39,7 +39,7 @@ use crate::log;
 /// | [`self_restart(...)`](ConcurrentClass::self_restart)                                | Restart the given struct.                                                                                                                    |
 pub trait ConcurrentClass<T, C>
 where
-    T: marker::Send + marker::Sync + 'static,
+    T: marker::Send + 'static,
     C: ConfigTrait
 {
     /// Return the config of a given struct. \
@@ -49,7 +49,7 @@ where
     /// The struct provided needs to be unlocked.
     fn get_name_unlocked(class_lock: &MutexGuard<T>) -> String;
     /// Return the name a given struct is identified with. \
-    /// The struct provided needs to be contained inside a [`PoisonError`].
+    /// The struct provided needs to be contained inside a [`std::sync::PoisonError`].
     fn get_name_poison_error(class_lock: &MutexGuard<T>) -> String;
     /// The purpose of this function is to create a new struct of type T based on the data that can be recovered from the corrupted one.
     fn get_default_state(class_lock: &MutexGuard<T>) -> T;

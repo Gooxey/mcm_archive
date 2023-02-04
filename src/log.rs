@@ -25,7 +25,7 @@ pub extern crate chrono;
 /// ## Example
 /// 
 /// ```rust
-/// # use mcm_misc::mcserver::mcserver_error::MCServerError;
+/// # use mcm_misc::mcserver_manager::mcserver::mcserver_error::MCServerError;
 /// # use mcm_misc::log;
 /// let err = MCServerError::FatalError;
 /// 
@@ -65,7 +65,7 @@ macro_rules! log_print {
 /// ## Example
 /// 
 /// ```rust
-/// # use mcm_misc::mcserver::mcserver_error::MCServerError;
+/// # use mcm_misc::mcserver_manager::mcserver::mcserver_error::MCServerError;
 /// # use mcm_misc::log;
 /// let err = MCServerError::FatalError;
 /// 
