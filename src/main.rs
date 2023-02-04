@@ -7,11 +7,11 @@ use std::sync::mpsc;
 use communicator::Communicator;
 use config::Config;
 use mcm_misc::message::Message;
-use mcm_misc::config::Config as ConfigTrait;
+use mcm_misc::config_trait::ConfigTrait;
+use mcm_misc::concurrent_class::ConcurrentClass;
 
 mod communicator;
 mod config;
-mod error;
 mod console;
 
 fn main() {
@@ -19,6 +19,7 @@ fn main() {
 
     let (tx, rx) = mpsc::channel::<Message>();
 
-    let com = communicator::Communicator::start(config.clone(), tx, rx).unwrap();
-    Communicator::stop(&com);
+    let com = Communicator::new(config.clone(), tx, rx);
+    Communicator::start(&com, true).unwrap();
+    Communicator::stop(&com, true).unwrap();
 }

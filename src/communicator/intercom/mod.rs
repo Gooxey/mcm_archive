@@ -1,21 +1,22 @@
 //! This module contains the [`InterCom struct`](InterCom), which manages the communication between the [`Console`](crate::console::Console) and the [`Communicators handlers`](super::Communicator::handler).
 
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::mpsc::{self, Sender, Receiver, TryRecvError};
 use std::thread;
 use std::collections::HashMap;
 use mcm_misc::log;
 use mcm_misc::message::Message;
-use mcm_misc::config::Config as ConfigTrait;
+use mcm_misc::config_trait::ConfigTrait;
+use mcm_misc::concurrent_class::ConcurrentClass;
+use mcm_misc::mcmanage_error::MCManageError;
 
-use crate::error::ChannelError;
-use crate::config::Config;
+use intercom_error::InterComError;
 
 use super::Communicator;
 
 
 mod tests;
+pub mod intercom_error;
 
 
 /// This struct manages the communication between the [`console`](crate::console::Console) and the [`communicator's`](super::Communicator) [`handlers`](super::Communicator::handler). \
@@ -32,29 +33,95 @@ mod tests;
 /// | [`stop(...)`](InterCom::stop)                                    | Stop the [`InterCom`].                                                              |
 /// | [`add_handler(...) -> Result<...>`](InterCom::add_handler)       | Add a new [`handler`](super::Communicator::handler) to the [`InterCom`].            |
 /// | [`remove_handler(...) -> Result<...>`](InterCom::remove_handler) | Remove an existing [`handler`](super::Communicator::handler) from the [`InterCom`]. |
-pub struct InterCom {
+pub struct InterCom<C: ConfigTrait> {
     /// This application's config.
-    config: Arc<Config>,
+    config: Arc<C>,
     /// The channel for sending [`messages`](mcm_misc::message::Message) to the [`console`](crate::console::Console).
-    sender: Arc<Mutex<Sender<Message>>>,
+    sender: Sender<Message>,
     /// The channel for receiving [`messages`](mcm_misc::message::Message) from the [`console`](crate::console::Console).
-    receiver: Arc<Mutex<Receiver<Message>>>,
+    receiver: Option<Receiver<Message>>,
     /// A list of every [`handler`](super::Communicator::handler) id.
-    handler_list: Arc<Mutex<Vec<String>>>,
+    handler_list: Vec<String>,
     /// A list of sending and receiving channels for sending and receiving [`messages`](mcm_misc::message::Message) to and from [`handlers`](super::Communicator::handler). \          
     /// 
     /// | Key                                                | Data -> first element                                                     | Data -> second element                                                         |
     /// |----------------------------------------------------|---------------------------------------------------------------------------|--------------------------------------------------------------------------------|
     /// | the [`handlers'`](super::Communicator::handler) id | channel to send messages to the [`handler`](super::Communicator::handler) | channel to receive messages from the [`handler`](super::Communicator::handler) |
-    handlers: Arc<Mutex<HashMap<String, (Sender<Message>, Receiver<Message>)>>>,
+    handlers: HashMap<String, (Sender<Message>, Receiver<Message>)>,
     /// The main thread
     main_thread: Option<thread::JoinHandle<()>>,
     /// Controls whether or not the [`main thread`](InterCom::main) is active.
-    alive: Arc<AtomicBool>,
+    alive: bool,
     /// The Communicator using this InterCom.
-    communicator: Option<Arc<Mutex<Communicator>>>
+    communicator: Option<Arc<Mutex<Communicator<C>>>>
 }
-impl InterCom {
+impl<C: ConfigTrait> ConcurrentClass<InterCom<C>, C> for InterCom<C> {
+    fn get_config_unlocked(class_lock: &MutexGuard<InterCom<C>>) -> Arc<C> {
+        class_lock.config.clone()
+    }
+    fn get_name_unlocked(_: &MutexGuard<InterCom<C>>) -> String {
+        "InterCom".to_string()
+    }
+    fn get_name_poison_error(_: &MutexGuard<InterCom<C>>) -> String {
+        "InterCom".to_string()
+    }
+    fn get_default_state(class_lock: &mut MutexGuard<InterCom<C>>) -> InterCom<C> {
+        InterCom {
+            config: class_lock.config.clone(),
+            sender: class_lock.sender.clone(),
+            receiver: class_lock.receiver.take(),
+            handler_list: vec![],
+            handlers: HashMap::new(),
+            main_thread: None,
+            alive: false,
+            communicator: class_lock.communicator.clone()
+        }
+    }
+    fn start(class: &Arc<Mutex<InterCom<C>>>, log_messages: bool) -> Result<(), MCManageError> {
+        let mut class_lock;
+        if let Some(lock) = Self::get_lock_pure(class, false) {
+            class_lock = lock;
+        } else {
+            if log_messages { log!("erro", "InterCom", "This InterCom got corrupted. It will not start."); }
+            Self::reset(&class);
+            return Err(MCManageError::FatalError);
+        }
+
+        if let None = class_lock.communicator {
+            if log_messages { log!("erro", "InterCom", "The Communicator has not yet been set."); }
+            return Err(MCManageError::NotReady);
+        }
+        
+        class_lock.alive = true;
+
+        let class_clone = class.clone();
+        class_lock.main_thread = Some(thread::spawn(move || {
+            Self::main(class_clone);      
+        }));
+
+        Ok(())
+    }
+    fn stop(class: &Arc<Mutex<InterCom<C>>>, log_messages: bool) -> Result<(), MCManageError> {
+        let mut class_lock;
+        if let Some(lock) = Self::get_lock_pure(class, false) {
+            class_lock = lock;
+        } else {
+            if log_messages { log!("erro", "InterCom", "This InterCom got corrupted. It will reset."); }
+            Self::reset(&class);
+            return Err(MCManageError::FatalError);
+        }
+        
+        class_lock.alive = false;
+
+        if let Some(main_thread) = class_lock.main_thread.take() {
+            drop(class_lock);
+            main_thread.join().expect("Could not join spawned thread");
+        }
+
+        Ok(())
+    }
+}
+impl<C: ConfigTrait> InterCom<C> {
     /// Create a new [`InterCom`] instance.
     /// 
     /// ## Parameters
@@ -63,62 +130,22 @@ impl InterCom {
     /// |-------------------------------|------------------------------------------------------------------------------------------------------------------------------|
     /// | `sender: Sender<Message>`     | This channel will be used to pass on [`messages`](mcm_misc::message::Message) to the [`console`](crate::console::Console).   |
     /// | `receiver: Receiver<Message>` | This channel will be used to receive [`messages`](mcm_misc::message::Message) from the [`console`](crate::console::Console). |
-    pub fn new(config: Arc<Config>, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
-        Self {
+    pub fn new(config: Arc<C>, sender: Sender<Message>, receiver: Receiver<Message>) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self {
             config,
-            sender: Arc::new(Mutex::new(sender)),
-            receiver: Arc::new(Mutex::new(receiver)),
-            handler_list: Arc::new(Mutex::new(vec![])),
-            handlers: Arc::new(Mutex::new(HashMap::new())),
+            sender,
+            receiver: Some(receiver),
+            handler_list: vec![],
+            handlers: HashMap::new(),
             main_thread: None,
-            alive: Arc::new(AtomicBool::new(false)),
+            alive: false,
             communicator: None
-        }
+        }))
     }
+    pub fn set_communicator(intercom: &Arc<Mutex<InterCom<C>>>, communicator: &Arc<Mutex<Communicator<C>>>) {
+        let mut intercom_lock = Self::get_lock(intercom);
 
-    /// Start the [`InterCom`]. \
-    /// This will start the [`main thread`](InterCom::main) of the [`InterCom`] and enable it to pass on all incoming [`messages`](mcm_misc::message::Message) to the right receiver.
-    /// 
-    /// ## Parameters
-    /// 
-    /// | Parameter                                | Description                           |
-    /// |------------------------------------------|---------------------------------------|
-    /// | `communicator: Arc<Mutex<Communicator>>` | The Communicator using this InterCom. |
-    pub fn start(&mut self, communicator: &Arc<Mutex<Communicator>>) {
-        self.communicator = Some(communicator.clone());
-        
-        self.alive.store(true, Ordering::Relaxed);
-
-        let config = self.config.clone();
-        let sender = self.sender.clone();
-        let receiver = self.receiver.clone();
-        let handler_list = self.handler_list.clone();
-        let handlers = self.handlers.clone();
-        let alive = self.alive.clone();
-        let communicator = self.communicator.clone().unwrap();
-
-        self.main_thread = Some(thread::spawn(|| {
-            Self::main(
-                config,
-                sender,
-                receiver,
-                handler_list,
-                handlers,
-                alive,
-                communicator
-            );      
-        }));
-    }
-    /// Stop the [`InterCom`]. \
-    /// This will wait and block the thread until the [`main thread`](InterCom::main) of the [`InterCom`] gets stopped. \
-    /// \
-    /// Maximum blocking time: ( 1 + amount of [`handlers`](super::Communicator::handler) ) * [`refresh_rate`](crate::config::Config::refresh_rate)
-    pub fn stop(&mut self) {
-        self.alive.store(false, Ordering::Relaxed);
-
-        if let Some(main_thread) = self.main_thread.take() {
-            main_thread.join().expect("Could not join spawned thread");
-        }
+        intercom_lock.communicator = Some(communicator.clone());
     }
 
     /// Add a new [`handler`](super::Communicator::handler) to the [`InterCom`]. \
@@ -144,57 +171,50 @@ impl InterCom {
     /// |----------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
     /// | `Ok((String, Sender<Message>, Receiver<Message>))` | The new ID of the [`handler`](super::Communicator::handler) and its two communication channels will be returned. |
     /// | `Err(ChannelError)`                                | The handler was not able to be added.                                                                            |
-    pub fn add_handler(&self, handler_type: char) -> Result<(String, Sender<Message>, Receiver<Message>), ChannelError> {
+    pub fn add_handler(intercom: &Arc<Mutex<InterCom<C>>>, handler_type: char) -> Result<(String, Sender<Message>, Receiver<Message>), InterComError> {
         // check for invalid types
         match handler_type {
             'r' => {}
             'c' => {}
             _ => {
                 return Err(
-                    ChannelError::InvalidType(handler_type)
+                    InterComError::InvalidType(handler_type)
                 )
             }
+        }
+
+        let mut intercom_lock = Self::get_lock(&intercom);
+        
+        if let None = intercom_lock.communicator {
+            log!("erro", "InterCom", "The Communicator has not yet been set.");
+            return Err(InterComError::MCManageError(MCManageError::NotReady));
         }
         
         let (intercom_send, handler_receive) = mpsc::channel();
         let (handler_send, intercom_receive) = mpsc::channel();
-        let id: String;
+        let handler_id: String;
         
         // add handler to handler_list
-        if let Ok(mut handler_list) = self.handler_list.lock() {
-            let mut i = 0;
-            loop {
-                if (*handler_list).contains(&format!("{}{}",handler_type, i)) {
-                    i+=1;
-                }
-                else {
-                    // valid key found
-                    id = format!("{}{}",handler_type, i);
-                    // add the id to the list
-                    (*handler_list).push(id.clone());
-                    break;
-                }
+        let mut i = 0;
+        loop {
+            if intercom_lock.handler_list.contains(&format!("{}{}",handler_type, i)) {
+                i+=1;
             }
-
-            // add the channels to the channel storage
-            if let Ok(mut handlers) = self.handlers.lock() {
-                if let Some(_) = (*handlers).insert(id.clone(), (handler_send, handler_receive)) {
-                    return Err(ChannelError::DesyncedChannelStorage(id))
-                }
-            } else {
-                log!("erro", "InterCom", "The handlers map got corrupted. The Communicator will be restarted.");
-                Communicator::self_restart(&self.communicator.as_ref().unwrap());
-
-                return Err(ChannelError::FatalError)
+            else {
+                // valid key found
+                handler_id = format!("{}{}",handler_type, i);
+                // add the id to the list
+                intercom_lock.handler_list.push(handler_id.clone());
+                break;
             }
-        } else {
-            log!("erro", "InterCom", "The handler_list got corrupted. The Communicator will be restarted.");
-            Communicator::self_restart(&self.communicator.as_ref().unwrap());
+        }
 
-            return Err(ChannelError::FatalError)
+        // add the channels to the channel storage
+        if let Some(_) = intercom_lock.handlers.insert(handler_id.clone(), (handler_send, handler_receive)) {
+            return Err(InterComError::DesyncedChannelStorage(handler_id))
         }
         
-        Ok((id, intercom_send, intercom_receive))
+        Ok((handler_id, intercom_send, intercom_receive))
     }
     /// Remove an existing [`handler`](super::Communicator::handler) from the [`InterCom`]. \
     /// This will remove the existing channels for a specified [`handler`](super::Communicator::handler) and with that, its ability to receive and send
@@ -212,97 +232,48 @@ impl InterCom {
     /// |---------------------|-----------------------------------------|
     /// | `Ok(())`            | The handler was successfully removed.   |
     /// | `Err(ChannelError)` | The handler was not able to be removed. |
-    pub fn remove_handler(&mut self, id: String) -> Result<(), ChannelError> {
-        // check for invalid types
-        match id.chars().next() {
-            Some('r') => {}
-            Some('c') => {}
-            _ => {
-                return Err(ChannelError::InvalidType(id.chars().next().unwrap_or(' ')))
-            }
-        }
-        
-        // remove handler from the handler_list
-        if let Ok(mut handler_list) = self.handler_list.lock() {
-            let mut i = 0;
-            for handler in &*handler_list {
-                if i == (*handler_list).len() {
-                    return Err(ChannelError::IDNotFound(id));
-                }
-                else if handler == &id {
-                    (*handler_list).remove(i);
-                    break;
-                }
-                i+=1;
-            }
+    pub fn remove_handler(intercom: &Arc<Mutex<InterCom<C>>>, handler_id: &str) -> Result<(), InterComError> {
+        let mut intercom_lock = Self::get_lock_nonblocking(intercom)?;
 
-            // remove channels from the channel storage
-            if let Ok(mut handlers) = self.handlers.lock() {
-                if let None = (*handlers).remove(&id) {
-                    return Err(ChannelError::IDNotFound(id));
-                }
-            } else {
-                log!("erro", "InterCom", "The handlers map got corrupted. The Communicator will be restarted.");
-                Communicator::self_restart(&self.communicator.as_ref().unwrap());
-
-                return Err(ChannelError::FatalError);
-            }
-        } else {
-            log!("erro", "InterCom", "The handler_list got corrupted. The Communicator will be restarted.");
-            Communicator::self_restart(&self.communicator.as_ref().unwrap());
-
-            return Err( ChannelError::FatalError);
-        }
-
-        Ok(())
+        return Self::self_remove_handler(&mut intercom_lock, handler_id);
     }
-    /// A version of the [`remove_handler`](InterCom::remove_handler) method used by threads that are not able to provide the necessary InterCom Object.
-    /// 
-    /// ## Parameters
-    /// 
-    /// | Parameter                                                              | Description                                                                                                                                                         |
-    /// |------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-    /// | `handler_list: &mut Vec<String>`                                       | A list of every [`handler`](super::Communicator::handler) id.                                                                                                       |
-    /// | `handlers: &mut HashMap<String, (Sender<Message>, Receiver<Message>)>` | A list of sending and receiving channels for sending and receiving [`messages`](mcm_misc::message::Message) to and from [`handlers`](super::Communicator::handler). |
-    /// | `id: String`                                                           | The ID assigned to the [`handler`](super::Communicator::handler) when it joined the [`InterCom`].                                                                   |
-    /// 
-    /// ## Returns
-    /// 
-    /// | Return              | Description                             |
-    /// |---------------------|-----------------------------------------|
-    /// | `Ok(())`            | The handler was successfully removed.   |
-    /// | `Err(ChannelError)` | The handler was not able to be removed. |
-    fn remove_handler_intern(handler_list: &mut Vec<String>, handlers: &mut HashMap<String, (Sender<Message>, Receiver<Message>)>, id: &String) -> Result<(), ChannelError> {
+    
+    fn self_remove_handler(intercom_lock: &mut InterCom<C>, handler_id: &str) -> Result<(), InterComError> {
         // check for invalid types
-        match id.chars().next() {
+        match handler_id.chars().next() {
             Some('r') => {}
             Some('c') => {}
             _ => {
-                return Err(ChannelError::InvalidType(id.chars().next().unwrap_or(' ')))
+                return Err(InterComError::InvalidType(handler_id.chars().next().unwrap_or(' ')))
             }
+        }
+
+        if let None = intercom_lock.communicator {
+            log!("erro", "InterCom", "The Communicator has not yet been set.");
+            return Err(InterComError::MCManageError(MCManageError::NotReady));
         }
         
         // remove handler from the handler_list
         let mut i = 0;
-        for handler in handler_list.clone() {
-            if i == handler_list.len() {
-                return Err(ChannelError::IDNotFound(id.clone()));
+        for handler in &intercom_lock.handler_list {
+            if i == intercom_lock.handler_list.len() {
+                return Err(InterComError::IDNotFound(handler_id.to_string()));
             }
-            else if handler == *id {
-                handler_list.remove(i);
+            else if handler == &handler_id {
+                intercom_lock.handler_list.remove(i);
                 break;
             }
             i+=1;
         }
 
         // remove channels from the channel storage
-        if let None = handlers.remove(id) {
-            return Err(ChannelError::IDNotFound(id.clone()));
+        if let None = intercom_lock.handlers.remove(&handler_id.to_string()) {
+            return Err(InterComError::IDNotFound(handler_id.to_string()));
         }
 
         Ok(())
     }
-    
+
     /// The main thread of the [`InterCom`] which gets invoked by the [`start method`](InterCom::start). \
     /// It will continuously check the receiving channels from the [`console`](crate::console::Console)
     /// and [`handlers`](super::Communicator::handler) and redirect the received [`messages`](mcm_misc::message::Message) to the [`console`](crate::console::Console)
@@ -319,96 +290,76 @@ impl InterCom {
     /// | `handlers: Arc<Mutex<HashMap<String, (Sender<Message>, Receiver<Message>)>>>` | A list of sending and receiving channels for sending and receiving [`messages`](mcm_misc::message::Message) to and from [`handlers`](super::Communicator::handler). |
     /// | `alive: Arc<AtomicBool>`                                                      | Controls whether or not the [`main thread`](InterCom::main) is active.                                                                                              |
     /// | `communicator: Arc<Mutex<Communicator>>`                                      | The Communicator using this InterCom.                                                                                                                               |
-    fn main(
-        config: Arc<Config>,
-        sender: Arc<Mutex<Sender<Message>>>,
-        receiver: Arc<Mutex<Receiver<Message>>>,
-        handler_list: Arc<Mutex<Vec<String>>>,
-        handlers: Arc<Mutex<HashMap<String, (Sender<Message>, Receiver<Message>)>>>,
-        alive: Arc<AtomicBool>,
-        communicator: Arc<Mutex<Communicator>>
-    ) {
-        while alive.load(Ordering::Relaxed) {
-            // check if the Console wants to send something and then pass it on to the right receiver if possible
-            if let Ok(rx) = receiver.lock() {
-                match (*rx).try_recv() {
-                    Ok(msg) => {
-                        let receiver = msg.receiver();
-            
-                        // get the channel to send to the receiver handler
-                        if let Ok(hs) = handlers.lock() {
-                            if let Some(handler) = (*hs).get(receiver) {
-                                if let Ok(_) = handler.0.send(msg) { /* message got sent */ }
-                            }
-                        } else {
-                            log!("erro", "InterCom", "The list containing all handler channels got corrupted. The Communicator will be restarted.");
-                            Communicator::self_restart(&communicator);
-
-                            return;
-                        }
-                    }
-                    Err(err) if err == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
-                    Err(_) => {
-                        log!("erro", "InterCom","The Console disconnected! The Communicator will shut down.");
-                        Communicator::self_stop(&communicator);
-
-                        return;
-                    }
-                }
+    fn main(intercom: Arc<Mutex<InterCom<C>>>) {
+        loop {
+            let mut intercom_lock;
+            if let Ok(lock) = Self::get_lock_nonblocking(&intercom) {
+                intercom_lock = lock
             } else {
-                log!("erro", "InterCom", "The channel for receiving messages from the Console got corrupted. The Communicator will be restarted.");
-                Communicator::self_restart(&communicator);
+                return;
+            }
+
+            // exit if the command got given
+            if !intercom_lock.alive {
+                return;
+            }
+
+            // check if the Console wants to send something and then pass it on to the right receiver if possible
+            let receiver;
+            if let Some(rx) = &intercom_lock.receiver {
+                receiver = rx
+            } else {
+                log!("erro", "InterCom", "The receiver channel is missing. The Communicator will shut down.");
+                Communicator::self_stop(&intercom_lock.communicator.as_ref().unwrap());
 
                 return;
+            }
+            match receiver.try_recv() {
+                Ok(msg) => {
+                    let receiver = msg.receiver();
+        
+                    // get the channel to send to the receiver handler
+                    if let Some(handler) = intercom_lock.handlers.get(receiver) {
+                        if let Ok(_) = handler.0.send(msg) { /* message got sent */ }
+                    }
+                }
+                Err(erro) if erro == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
+                Err(_) => {
+                    log!("erro", "InterCom", "The Console disconnected! The Communicator will shut down.");
+                    // it is safe to unwrap here since this thread would never have started if this value was not set
+                    Communicator::self_stop(&intercom_lock.communicator.as_ref().unwrap());
+
+                    return;
+                }
             }
 
             // check if any handler wants to send something and then pass it on to the Console
-            if let Ok(mut hr) = handlers.lock() {
-                if let Ok(mut hl) = handler_list.lock() {
-                    for handler_id in &*hl.clone() {
-                        if let Some(rx) = (*hr).get(handler_id) {
-                            match rx.1.try_recv() {
-                                Ok(msg) => {                                        
-                                    // send to Console because all incoming messages have to be processed by the Console
-                                    if let Ok(tx) = sender.lock() {
-                                        if let Ok(_) = (*tx).send(msg) { /* message got sent */ }
-                                    } else {
-                                        log!("erro", "InterCom", "The channel for sending messages to the Console got corrupted. The Communicator will be restarted.");
-                                        Communicator::self_restart(&communicator);
-    
-                                        return;
-                                    }
-                                }
-                                Err(err) if err == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
-                                Err(_) => {
-                                    log!("erro", "InterCom", "The handler {handler_id} disconnected.");
-                                    if let Err(_) = Self::remove_handler_intern(&mut hl, &mut hr, &handler_id) {
-                                        /* Do nothing because it must already have been removed */
-                                    }
-                                }
+            for handler_id in &intercom_lock.handler_list.clone() {
+                if let Some(rx) = intercom_lock.handlers.get(handler_id) {
+                    match rx.1.try_recv() {
+                        Ok(msg) => {                                        
+                            // send to Console because all incoming messages have to be processed by the Console
+                            if let Ok(_) = intercom_lock.sender.send(msg) { /* message got sent */ }
+                        }
+                        Err(erro) if erro == TryRecvError::Empty => { /* There is no message currently waiting to be send */ }
+                        Err(_) => {
+                            log!("erro", "InterCom", "The handler {handler_id} disconnected.");
+                            if let Err(_) = Self::self_remove_handler(&mut intercom_lock, &handler_id) {
+                                /* Do nothing because it must already have been removed */
                             }
-                        } else {
-                            log!("erro", "InterCom", "The handler list did not match the handler_id list. The Communicator will be restarted.");
-                            Communicator::self_restart(&communicator);
-    
-                            return;
-    
                         }
                     }
                 } else {
-                    log!("erro", "InterCom", "The list containing all handler ids got corrupted. The Communicator will be restarted.");
-                    Communicator::self_restart(&communicator);
+                    log!("erro", "InterCom", "The handler list did not match the handler_id list. The Communicator will be restarted.");
+                    // it is safe to unwrap here since this thread would never have started if this value was not set
+                    Communicator::self_restart(&intercom_lock.communicator.as_ref().unwrap());
 
                     return;
-                }  
-            } else {
-                log!("erro", "InterCom", "The list containing all handler channels got corrupted. The Communicator will be restarted.");
-                Communicator::self_restart(&communicator);
 
-                return;
+                }
             }
 
-            thread::sleep(*config.refresh_rate());
+            thread::sleep(*intercom_lock.config.refresh_rate());
         }
     }
 }

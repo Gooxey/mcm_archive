@@ -2,6 +2,8 @@
 #![cfg(test)]
 
 
+use crate::config::Config;
+
 use super::*;
 use mcm_misc::message::message_type::MessageType;
 
@@ -9,27 +11,30 @@ use mcm_misc::message::message_type::MessageType;
 // InterCom__add_handler tests
 #[test]
 fn InterCom__add_handler__valid_chars() {
-    let (ic_tx, _) = mpsc::channel::<Message>();
+    let (ic_tx, _rx) = mpsc::channel::<Message>();
     let (_, ic_rx) = mpsc::channel::<Message>();
     let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
 
-    match myInterCom.add_handler('r') {
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
+
+    match InterCom::add_handler(&myInterCom, 'r') {
         Ok(r) => {
             let id = r.0;
 
-            assert!(myInterCom.handler_list.lock().unwrap().contains(&format!("{id}")), "The given id {} is missing in the handler_list.", format!("{id}"));
-            assert!(myInterCom.handlers.lock().unwrap().contains_key(&format!("{id}")), "The given key {} is missing in handlers.", format!("{id}"));
+            assert!(InterCom::get_lock_pure(&myInterCom, true).unwrap().handler_list.contains(&format!("{id}")), "The given id {} is missing in the handler_list.", format!("{id}"));
+            assert!(InterCom::get_lock_pure(&myInterCom, true).unwrap().handlers.contains_key(&format!("{id}")), "The given key {} is missing in handlers.", format!("{id}"));
         }
         Err(e) => {
             assert!(false, "{}", e);
         }
     }
-    match myInterCom.add_handler('c') {
+    match InterCom::add_handler(&myInterCom, 'c') {
         Ok(r) => {
             let id = r.0;
 
-            assert!(myInterCom.handler_list.lock().unwrap().contains(&format!("{id}")), "The given id {} is missing in the handler_list.", format!("{id}"));
-            assert!(myInterCom.handlers.lock().unwrap().contains_key(&format!("{id}")), "The given key {} is missing in handlers.", format!("{id}"));
+            assert!(InterCom::get_lock_pure(&myInterCom, true).unwrap().handler_list.contains(&format!("{id}")), "The given id {} is missing in the handler_list.", format!("{id}"));
+            assert!(InterCom::get_lock_pure(&myInterCom, true).unwrap().handlers.contains_key(&format!("{id}")), "The given key {} is missing in handlers.", format!("{id}"));
         }
         Err(e) => {
             assert!(false, "{}", e);
@@ -41,17 +46,19 @@ fn InterCom__add_handler__invalid_chars() {
     let (ic_tx, _) = mpsc::channel::<Message>();
     let (_, ic_rx) = mpsc::channel::<Message>();
     let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    match myInterCom.add_handler('d') {
+    match InterCom::add_handler(&myInterCom, 'd') {
         Ok(r) => {
             let id = r.0;
             
-            assert!(!myInterCom.handler_list.lock().unwrap().contains(&format!("{id}")), "The invalid id {} was found in the handler_list.", format!("{id}"));
-            assert!(!myInterCom.handlers.lock().unwrap().contains_key(&format!("{id}")), "The invalid key {} was found in handlers.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handler_list.contains(&format!("{id}")), "The invalid id {} was found in the handler_list.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handlers.contains_key(&format!("{id}")), "The invalid key {} was found in handlers.", format!("{id}"));
         }
         Err(e) => {
             match e {
-                ChannelError::InvalidType(_) => {
+                InterComError::InvalidType(_) => {
                     assert!(true)
                 }
                 _ => {
@@ -60,16 +67,16 @@ fn InterCom__add_handler__invalid_chars() {
             }
         }
     }
-    match myInterCom.add_handler(' ') {
+    match InterCom::add_handler(&myInterCom, ' ') {
         Ok(r) => {
             let id = r.0;
 
-            assert!(!myInterCom.handler_list.lock().unwrap().contains(&format!("{id}")), "The invalid id {} was found in the handler_list.", format!("{id}"));
-            assert!(!myInterCom.handlers.lock().unwrap().contains_key(&format!("{id}")), "The invalid key {} was found in handlers.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handler_list.contains(&format!("{id}")), "The invalid id {} was found in the handler_list.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handlers.contains_key(&format!("{id}")), "The invalid key {} was found in handlers.", format!("{id}"));
         }
         Err(e) => {
             match e {
-                ChannelError::InvalidType(_) => {
+                InterComError::InvalidType(_) => {
                     assert!(true)
                 }
                 _ => {
@@ -85,14 +92,17 @@ fn InterCom__add_handler__invalid_chars() {
 fn InterCom__remove_handler__existing_id() {
     let (ic_tx, _) = mpsc::channel::<Message>();
     let (_, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
+    
 
-    let (id, _, _) = myInterCom.add_handler('r').unwrap();
+    let (id, _, _) = InterCom::add_handler(&myInterCom, 'r').unwrap();
 
-    match myInterCom.remove_handler(id.clone()) {
+    match InterCom::remove_handler(&myInterCom, &id.clone()) {
         Ok(_) => {
-            assert!(!myInterCom.handler_list.lock().unwrap().contains(&format!("{id}")), "The given id {} is still in the handler_list.", format!("{id}"));
-            assert!(!myInterCom.handlers.lock().unwrap().contains_key(&format!("{id}")), "The given key {} is still in handlers.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handler_list.contains(&format!("{id}")), "The given id {} is still in the handler_list.", format!("{id}"));
+            assert!(!InterCom::get_lock_pure(&myInterCom, true).unwrap().handlers.contains_key(&format!("{id}")), "The given key {} is still in handlers.", format!("{id}"));
         }
         Err(e) => {
             assert!(false, "{}", e);
@@ -103,19 +113,21 @@ fn InterCom__remove_handler__existing_id() {
 fn InterCom__remove_handler__nonexisting_id() {
     let (ic_tx, _) = mpsc::channel::<Message>();
     let (_, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    match myInterCom.remove_handler("r6".to_owned()) {
+    match InterCom::remove_handler(&myInterCom, &"r6".to_owned()) {
         Ok(_) => {
-            assert!(false, "Expected the error: ChannelError::IDNotFound.");
+            assert!(false, "Expected the error: InterComError::IDNotFound.");
         }
         Err(e) => {
             match e {
-                ChannelError::IDNotFound(_) => {
+                InterComError::IDNotFound(_) => {
                     assert!(true)
                 }
                 _ => {
-                    assert!(false, "Expected the error: ChannelError::IDNotFound. Found: {e}");
+                    assert!(false, "Expected the error: InterComError::IDNotFound. Found: {e}");
                 }
             }
         }
@@ -125,34 +137,36 @@ fn InterCom__remove_handler__nonexisting_id() {
 fn InterCom__remove_handler__invalid_id() {
     let (ic_tx, _) = mpsc::channel::<Message>();
     let (_, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    match myInterCom.remove_handler("d0".to_owned()) {
+    match InterCom::remove_handler(&myInterCom, &"d0".to_owned()) {
         Ok(_) => {
-            assert!(false, "Expected the error: ChannelError::InvalidType.");
+            assert!(false, "Expected the error: InterComError::InvalidType.");
         }
         Err(e) => {
             match e {
-                ChannelError::InvalidType(_) => {
+                InterComError::InvalidType(_) => {
                     assert!(true)
                 }
                 _ => {
-                    assert!(false, "Expected the error: ChannelError::InvalidType. Found: {e}");
+                    assert!(false, "Expected the error: InterComError::InvalidType. Found: {e}");
                 }
             }
         }
     }
-    match myInterCom.remove_handler(" ".to_owned()) {
+    match InterCom::remove_handler(&myInterCom, &" ".to_owned()) {
         Ok(_) => {
-            assert!(false, "Expected the error: ChannelError::InvalidType.");
+            assert!(false, "Expected the error: InterComError::InvalidType.");
         }
         Err(e) => {
             match e {
-                ChannelError::InvalidType(_) => {
+                InterComError::InvalidType(_) => {
                     assert!(true)
                 }
                 _ => {
-                    assert!(false, "Expected the error: ChannelError::InvalidType. Found: {e}");
+                    assert!(false, "Expected the error: InterComError::InvalidType. Found: {e}");
                 }
             }
         }
@@ -162,15 +176,18 @@ fn InterCom__remove_handler__invalid_id() {
 // InterCom start/stop tests
 #[test]
 fn InterCom__start() {
-    let (ic_tx, receiver) = mpsc::channel::<Message>();
-    let (sender, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
-    let myCommunicator = Communicator::start(Arc::new(Config::new()), sender, receiver).unwrap();
+    let (ic_tx, _receiver) = mpsc::channel::<Message>();
+    let (_sender, ic_rx) = mpsc::channel::<Message>();
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    myInterCom.start(&myCommunicator);
+    InterCom::start(&myInterCom, true).unwrap();
+    
+    let myInterCom_lock = InterCom::get_lock_pure(&myInterCom, true).unwrap();
 
     // check if thread got created and alive status set to true
-    match myInterCom.main_thread {
+    match myInterCom_lock.main_thread {
         Some(_) => {
             assert!(true)
         }
@@ -178,22 +195,27 @@ fn InterCom__start() {
             assert!(false, "Expected thread to be created and saved to the `main_thread` field. Found nothing.")
         }
     }
-    assert_eq!(myInterCom.alive.load(Ordering::Relaxed), true, "Expected `alive` field to be set to `true`.");
+    assert_eq!(myInterCom_lock.alive, true, "Expected `alive` field to be set to `true`.");
 
-    myInterCom.stop();
+    drop(myInterCom_lock);
+
+    InterCom::stop(&myInterCom, true).unwrap();
 }
 #[test]
 fn InterCom__stop() {
-    let (ic_tx, receiver) = mpsc::channel::<Message>();
-    let (sender, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
-    let myCommunicator = Communicator::start(Arc::new(Config::new()), sender, receiver).unwrap();
+    let (ic_tx, _receiver) = mpsc::channel::<Message>();
+    let (_sender, ic_rx) = mpsc::channel::<Message>();
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    myInterCom.start(&myCommunicator);
-    myInterCom.stop();
+    InterCom::start(&myInterCom, true).unwrap();
+    InterCom::stop(&myInterCom, true).unwrap();
+
+    let myInterCom_lock = InterCom::get_lock_pure(&myInterCom, true).unwrap();
 
     // check if thread got deleted and alive status set to false
-    match myInterCom.main_thread {
+    match myInterCom_lock.main_thread {
         Some(_) => {
             assert!(false, "Expected thread to be deleted. Found a thread in the `main_thread` field.")
         }
@@ -201,22 +223,22 @@ fn InterCom__stop() {
             assert!(true)
         }
     }
-    assert_eq!(myInterCom.alive.load(Ordering::Relaxed), false, "Expected `alive` field to be set to `false`.");
+    assert_eq!(myInterCom_lock.alive, false, "Expected `alive` field to be set to `false`.");
 }
 
 // InterCom tests
 #[test]
 fn InterCom__Console_to_handler() {
-    let (sender, _) = mpsc::channel::<Message>();
-    let (ic_tx, receiver) = mpsc::channel::<Message>();
+    let (_sender, _) = mpsc::channel::<Message>();
+    let (ic_tx, _receiver) = mpsc::channel::<Message>();
     let (tx, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom: InterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
-    let myCommunicator = Communicator::start(Arc::new(Config::new()), sender, receiver).unwrap();
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
+    InterCom::start(&myInterCom, true).unwrap();
 
-    myInterCom.start(&myCommunicator);
-
-    let (id1, _placeholder1, rx1) = myInterCom.add_handler('c').unwrap();
-    let (id2, _placeholder2, rx2) = myInterCom.add_handler('c').unwrap();
+    let (id1, _placeholder1, rx1) = InterCom::add_handler(&myInterCom, 'c').unwrap();
+    let (id2, _placeholder2, rx2) = InterCom::add_handler(&myInterCom, 'c').unwrap();
 
     // send messages
 
@@ -248,20 +270,21 @@ fn InterCom__Console_to_handler() {
         }
     }
 
-    myInterCom.stop();
+    InterCom::stop(&myInterCom, true).unwrap();
 }
 #[test]
 fn InterCom__handler_to_Console() {
-    let (_placeholder, receiver) = mpsc::channel::<Message>();
+    let (_placeholder, _receiver) = mpsc::channel::<Message>();
     let (ic_tx, rx) = mpsc::channel::<Message>();
-    let (sender, ic_rx) = mpsc::channel::<Message>();
-    let mut myInterCom: InterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
-    let myCommunicator = Communicator::start(Arc::new(Config::new()), sender, receiver).unwrap();
+    let (_sender, ic_rx) = mpsc::channel::<Message>();
+    let myInterCom = InterCom::new(Arc::new(Config::new()), ic_tx, ic_rx);
+    let (com_tx, com_rx) = mpsc::channel::<Message>();
+    InterCom::set_communicator(&myInterCom, &Communicator::new(Arc::new(Config::new()), com_tx, com_rx));
 
-    myInterCom.start(&myCommunicator);
+    InterCom::start(&myInterCom, true).unwrap();
 
-    let (id1, tx1, _placeholder2) = myInterCom.add_handler('c').unwrap();
-    let (id2, tx2, _placeholder3) = myInterCom.add_handler('c').unwrap();
+    let (id1, tx1, _placeholder2) = InterCom::add_handler(&myInterCom, 'c').unwrap();
+    let (id2, tx2, _placeholder3) = InterCom::add_handler(&myInterCom, 'c').unwrap();
 
     // send messages
     tx1.send(Message::new("test message from client 1", MessageType::Request, &id1, "some_thread", vec![])).unwrap();
@@ -287,5 +310,5 @@ fn InterCom__handler_to_Console() {
         }
     }
 
-    myInterCom.stop();
+    InterCom::stop(&myInterCom, true).unwrap();
 }

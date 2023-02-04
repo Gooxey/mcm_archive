@@ -11,10 +11,13 @@ pub enum Command {
 }
 impl Command {
     /// Execute the command of this enum and return its result.
-    pub fn execute(&self) -> Result<String, std::io::Error> {
-        match self {
-            Self::GetFile(filepath) => { Self::getfile(filepath) }
-        }
+    pub fn execute(&self) {
+        // thread::spawn(||
+        //     match self {
+        //         Self::GetFile(filepath) => { Self::getfile(filepath) }
+        //     }
+        // );
+        
     }
     /// Get a string version of this enum variant. The data held by the variant will not be described by this string.
     pub fn to_string(&self) -> String {

@@ -3,7 +3,7 @@
 
 use std::net::{SocketAddrV4, Ipv4Addr};
 use std::time::Duration;
-use mcm_misc::config::Config as ConfigTrait;
+use mcm_misc::config_trait::ConfigTrait;
 
 const AGREE_TO_EULA: bool = false;
 

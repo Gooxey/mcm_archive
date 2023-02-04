@@ -4,6 +4,8 @@
 
 use std::sync::mpsc;
 
+use crate::config::Config;
+
 use super::*;
 
 
@@ -45,24 +47,26 @@ fn register_client(client: &mut TcpStream) {
 #[test]
 fn Communicator__start() {
     let (config, sender, receiver, _tx, _rx) = communicator_init_values();
-    let com = Communicator::start(config, sender, receiver).unwrap();
+    let com = Communicator::new(config, sender, receiver);
+    Communicator::start(&com, true).unwrap();
 
     if let Ok(com) = com.lock() {
-        assert_eq!(com.alive.load(Ordering::Relaxed), true, "Expected `alive` field to be true.");
+        assert_eq!(com.alive, true, "Expected `alive` field to be true.");
         if let None = com.main_thread  {
             assert!(false, "Expected `main_thread` field to not be None.");
         }
     };
-    Communicator::stop(&com);
+    Communicator::stop(&com, true).unwrap();
 }
 #[test]
 fn Communicator__stop() {
     let (config, sender, receiver, _tx, _rx) = communicator_init_values();
-    let com = Communicator::start(config, sender, receiver).unwrap();
+    let com = Communicator::new(config, sender, receiver);
+    Communicator::start(&com, true).unwrap();
     
-    Communicator::stop(&com);
+    Communicator::stop(&com, true).unwrap();
     if let Ok(com) = com.lock() {
-        assert_eq!(com.alive.load(Ordering::Relaxed), false, "Expected `alive` field to be false.");
+        assert_eq!(com.alive, false, "Expected `alive` field to be false.");
         if let Some(_) = com.main_thread  {
             assert!(false, "Expected `main_thread` field to be None.");
         }
@@ -71,23 +75,25 @@ fn Communicator__stop() {
 #[test]
 fn Communicator__restart() {    
     let (config, sender, receiver, _tx, _rx) = communicator_init_values();
-    let com = Communicator::start(config, sender, receiver).unwrap();
+    let com = Communicator::new(config, sender, receiver);
+    Communicator::start(&com, true).unwrap();
     
-    Communicator::restart(&com, None, None).unwrap();
+    Communicator::restart(&com).unwrap();
 
     if let Ok(com) = com.lock() {
-        assert_eq!(com.alive.load(Ordering::Relaxed), true, "Expected `alive` field to be true.");
+        assert_eq!(com.alive, true, "Expected `alive` field to be true.");
         if let None = com.main_thread  {
             assert!(false, "Expected `main_thread` field to be Some.");
         }
     };
-    Communicator::stop(&com);
+    Communicator::stop(&com, true).unwrap();
 }
 
 #[test]
 fn Communicator__InterCom_to_Client() {
     let (config, sender, receiver, tx, _rx) = communicator_init_values();
-    let com = Communicator::start(config, sender, receiver).unwrap();
+    let com = Communicator::new(config, sender, receiver);
+    Communicator::start(&com, true).unwrap();
 
     let mut client = TcpStream::connect(Config::new().addr()).unwrap();
     let mut buffer = [0; 110];
@@ -119,12 +125,13 @@ fn Communicator__InterCom_to_Client() {
             }
         }
     }
-    Communicator::stop(&com);
+    Communicator::stop(&com, true).unwrap();
 }
 #[test]
 fn Communicator__Client_to_InterCom() {
     let (config, sender, receiver, _tx, rx) = communicator_init_values();
-    let com = Communicator::start(config, sender, receiver).unwrap();
+    let com = Communicator::new(config, sender, receiver);
+    Communicator::start(&com, true).unwrap();
     let mut client = TcpStream::connect(Config::new().addr()).unwrap();
 
     let message = Message::new("save_log", MessageType::Request, "r0", "some_thread", vec!["hello world!"]);
@@ -148,5 +155,5 @@ fn Communicator__Client_to_InterCom() {
         }
     }
 
-    Communicator::stop(&com);
+    Communicator::stop(&com, true).unwrap();
 }
