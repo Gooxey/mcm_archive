@@ -39,7 +39,7 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 
 | Trait | Description |
 |-|-|
-| [Config](./src/config.rs) | Every struct implementing this trait can be used as the application's config. |
+| [ConfigTrait](./src/config_trait.rs) | Every struct implementing this trait can be used as the application's config. |
 
 
 ### MCServer

@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use crate::concurrent_class::ConcurrentClass;
 use crate::log;
-use crate::config::Config;
+use crate::config_trait::ConfigTrait;
 use crate::mcmanage_error::MCManageError;
 use self::mcserver_error::MCServerError;
 use self::mcserver_type::MCServerType;
@@ -46,7 +46,7 @@ pub mod mcserver_status;
 /// | [`stop(...) -> Result<..>`](MCServer::stop)                         | Stop the [`MCServer`].                                   |
 /// | [`restart(...) -> Result<..>`](MCServer::restart)                   | Restart the [`MCServer`].                                |
 /// | [`send_input(...)`](MCServer::send_input)                           | Send a given string to the Minecraft server as an input. |
-pub struct MCServer<C: Config> {
+pub struct MCServer<C: ConfigTrait> {
     /// The name of this MCServer.
     name: String,
     /// The arguments for starting the Minecraft server. ( for example: '-jar purpur-1.19.3-1876.jar -Xmx4G nogui' )
@@ -70,7 +70,7 @@ pub struct MCServer<C: Config> {
     /// The list of players on the Minecraft server.
     players: Vec<String>
 }
-impl<C: Config> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
+impl<C: ConfigTrait> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
     fn get_config_unlocked(class_lock: &MutexGuard<MCServer<C>>) -> Arc<C> {
         return class_lock.config.clone();
     }
@@ -234,7 +234,7 @@ impl<C: Config> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
         }
     }
 }
-impl<C: Config> MCServer<C> {
+impl<C: ConfigTrait> MCServer<C> {
     /// Create a new [`MCServer`] instance.
     /// 
     /// ## Parameters

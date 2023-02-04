@@ -24,7 +24,7 @@ struct MyConfig {
     max_tries: i32,
     agree_to_eula: bool
 }
-impl Config for MyConfig {
+impl ConfigTrait for MyConfig {
     fn new() -> Self {
         Self {
             addr: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 25564),
@@ -51,7 +51,7 @@ impl Config for MyConfig {
     }
 }
 
-fn new_mcserver<C: Config>() -> Arc<Mutex<MCServer<C>>> {
+fn new_mcserver<C: ConfigTrait>() -> Arc<Mutex<MCServer<C>>> {
     cleanup();
     download_minecraft_server();
 
@@ -62,7 +62,7 @@ fn new_mcserver<C: Config>() -> Arc<Mutex<MCServer<C>>> {
         &Arc::new(C::new())
     )
 }
-fn new_mcserver_no_download<C: Config>() -> Arc<Mutex<MCServer<C>>> {
+fn new_mcserver_no_download<C: ConfigTrait>() -> Arc<Mutex<MCServer<C>>> {
     cleanup();
     
     MCServer::new(

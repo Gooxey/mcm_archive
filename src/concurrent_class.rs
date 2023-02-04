@@ -6,7 +6,7 @@ use std::thread;
 use std::marker;
 use std::time::Instant;
 
-use crate::config::Config;
+use crate::config_trait::ConfigTrait;
 use crate::mcmanage_error::MCManageError;
 use crate::log;
 
@@ -40,7 +40,7 @@ use crate::log;
 pub trait ConcurrentClass<T, C>
 where
     T: marker::Send + marker::Sync + 'static,
-    C: Config
+    C: ConfigTrait
 {
     /// Return the config of a given struct. \
     /// The struct provided needs to be unlocked.

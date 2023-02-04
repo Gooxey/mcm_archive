@@ -36,9 +36,9 @@
 //! 
 //! ### Config
 //! 
-//! | Trait                      | Description                                                                   |
-//! |----------------------------|-------------------------------------------------------------------------------|
-//! | [`Config`](config::Config) | Every struct implementing this trait can be used as the application's config. |
+//! | Trait                                | Description                                                                   |
+//! |--------------------------------------|-------------------------------------------------------------------------------|
+//! | [`ConfigTrait`](config::ConfigTrait) | Every struct implementing this trait can be used as the application's config. |
 //! 
 //! 
 //! ### MCServer
@@ -74,7 +74,7 @@
 pub mod log;
 pub mod message;
 pub mod mcserver_manager;
-pub mod config;
+pub mod config_trait;
 pub mod concurrent_class;
 pub mod mcmanage_error;
 
