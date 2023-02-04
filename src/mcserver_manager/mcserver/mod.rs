@@ -80,7 +80,7 @@ impl<C: ConfigTrait> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
     fn get_name_poison_error(class_lock: &MutexGuard<MCServer<C>>) -> String {
         return class_lock.name.clone();
     }
-    fn get_default_state(class_lock: &MutexGuard<MCServer<C>>) -> MCServer<C> {
+    fn get_default_state(class_lock: &mut MutexGuard<MCServer<C>>) -> MCServer<C> {
         Self {
             name: class_lock.name.clone(),
             arg: class_lock.arg.clone(),

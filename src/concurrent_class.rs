@@ -52,7 +52,7 @@ where
     /// The struct provided needs to be contained inside a [`std::sync::PoisonError`].
     fn get_name_poison_error(class_lock: &MutexGuard<T>) -> String;
     /// The purpose of this function is to create a new struct of type T based on the data that can be recovered from the corrupted one.
-    fn get_default_state(class_lock: &MutexGuard<T>) -> T;
+    fn get_default_state(class_lock: &mut MutexGuard<T>) -> T;
 
     /// Start a given struct.
     fn start(class: &Arc<Mutex<T>>, log_messages: bool) -> Result<(), MCManageError>;
