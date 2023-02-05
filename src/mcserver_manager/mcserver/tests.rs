@@ -5,51 +5,11 @@
 use std::fs;
 use std::fs::File;
 use std::io;
-use std::net::{SocketAddrV4, Ipv4Addr};
-use std::time::Duration;
 use reqwest;
 
 use super::*;
 use crate::test_functions::*;
 
-// The following line is copied from the Minecraft servers EULA
-// By changing the setting below to TRUE you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).
-const AGREE_TO_EULA: bool = false;
-
-
-struct MyConfig {
-    addr: SocketAddrV4,
-    buffsize: u32,
-    refresh_rate: Duration,
-    max_tries: i32,
-    agree_to_eula: bool
-}
-impl ConfigTrait for MyConfig {
-    fn new() -> Self {
-        Self {
-            addr: SocketAddrV4::new(Ipv4Addr::LOCALHOST, 25564),
-            buffsize: 100000000,
-            refresh_rate: Duration::new(0, 100000000),
-            max_tries: 3,
-            agree_to_eula: AGREE_TO_EULA
-        }
-    }
-    fn addr(&self) -> &SocketAddrV4 {
-        &self.addr
-    }
-    fn buffsize(&self) -> &u32 {
-        &self.buffsize
-    }
-    fn refresh_rate(&self) -> &Duration {
-        &self.refresh_rate
-    }
-    fn max_tries(&self) -> &i32 {
-        &self.max_tries
-    }
-    fn agree_to_eula(&self) -> &bool {
-        &self.agree_to_eula
-    }
-}
 
 fn new_mcserver<C: ConfigTrait>() -> Arc<Mutex<MCServer<C>>> {
     cleanup();
@@ -82,7 +42,7 @@ fn download_minecraft_server() {
 // getter / setter functions
 #[test]
 fn MCServer__get_mcserver_type() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
 
     let _mcserver_type = MCServer::get_mcserver_type(&MCServer::get_lock_pure(&mcserver, true).unwrap(), &mcserver).unwrap();
     assert!(true);
@@ -97,7 +57,7 @@ fn MCServer__get_mcserver_type() {
 }
 #[test]
 fn MCServer__get_status() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
 
     let status = MCServer::get_status(&mcserver).unwrap();
     
@@ -110,7 +70,7 @@ fn MCServer__get_status() {
 }
 #[test]
 fn MCServer__get_players() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
 
     let players = MCServer::get_players(&mcserver).unwrap();
     let expected_result: Vec<String> = vec![];
@@ -121,7 +81,7 @@ fn MCServer__get_players() {
 
 #[test]
 fn MCServer__reset() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mut mcserver_lock = mcserver.lock().unwrap();
 
     mcserver_lock.alive = true;
@@ -144,7 +104,7 @@ fn MCServer__reset() {
 }
 #[test]
 fn MCServer__reset_unlocked() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mut mcserver_lock = mcserver.lock().unwrap();
 
     mcserver_lock.alive = true;
@@ -164,7 +124,7 @@ fn MCServer__reset_unlocked() {
 
 #[test]
 fn MCServer__start() {
-    let mcserver = new_mcserver::<MyConfig>();
+    let mcserver = new_mcserver::<Config>();
 
     MCServer::start(&mcserver, false).unwrap();
     if let Ok(mcserver) = mcserver.lock() {
@@ -189,6 +149,8 @@ fn MCServer__start() {
     loop {
         if let MCServerStatus::Started = status_closure() {
             break;
+        } else if let MCServerStatus::Stopped = status_closure() {
+            assert!(false, "The MCServer canceled its startup because the EULA was not accepted.");
         }
     }
     MCServer::stop(&mcserver, false).unwrap();
@@ -196,7 +158,7 @@ fn MCServer__start() {
 }
 #[test]
 fn MCServer__stop() {
-    let mcserver = new_mcserver::<MyConfig>();
+    let mcserver = new_mcserver::<Config>();
 
     MCServer::start(&mcserver, false).unwrap();
     loop {
@@ -221,7 +183,7 @@ fn MCServer__stop() {
 }
 #[test]
 fn MCServer__restart() {
-    let mcserver = new_mcserver::<MyConfig>();
+    let mcserver = new_mcserver::<Config>();
 
     MCServer::start(&mcserver, true).unwrap();
     MCServer::wait_for_start_confirm(&mcserver);
@@ -253,7 +215,7 @@ fn MCServer__restart() {
 
 #[test]
 fn MCServer__send_input() {
-    let mcserver = new_mcserver::<MyConfig>();
+    let mcserver = new_mcserver::<Config>();
     let expected_string = " INFO]: Unknown command. Type \"/help\" for help.";
 
     MCServer::start(&mcserver, false).unwrap();
@@ -264,7 +226,7 @@ fn MCServer__send_input() {
     }
     MCServer::send_input(&mcserver, "invalid_command");
 
-    thread::sleep(*MyConfig::new().refresh_rate());
+    thread::sleep(*Config::new().refresh_rate());
 
     let mut out = "".to_string();
     if let Err(_) = File::options().read(true).open("./logs/myMinecraftServer.txt").unwrap().read_to_string(&mut out) {}
@@ -277,7 +239,7 @@ fn MCServer__send_input() {
 }
 #[test]
 fn MCServer__save_output() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mcserver_lock = MCServer::get_lock(&mcserver);
 
     MCServer::save_output("Test line", &mcserver_lock);
@@ -290,7 +252,7 @@ fn MCServer__save_output() {
 
 #[test]
 fn MCServer__get_stdout_pipe() {
-    let mcserver = new_mcserver::<MyConfig>();
+    let mcserver = new_mcserver::<Config>();
     MCServer::start(&mcserver, false).unwrap();
 
     MCServer::get_stdout_pipe(&mut MCServer::get_lock_pure(&mcserver, true).unwrap()).unwrap();
@@ -298,7 +260,7 @@ fn MCServer__get_stdout_pipe() {
 }
 #[test]
 fn MCServer__check_started() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
 
     if !MCServer::check_started("[13:40:24 INFO]: Done (10.619s)! For help, type \"help\"", Instant::now(), &mcserver, false).unwrap() {
         assert!(false, "Expected function to detect a 'start'");
@@ -315,7 +277,7 @@ fn MCServer__check_started() {
 }
 #[test]
 fn MCServer__check_player_activity__connect() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
 
     MCServer::check_player_activity("[13:53:51 INFO]: Gooxey joined the game", &mcserver).unwrap();
     if let Ok(mcserver) = mcserver.lock() {
@@ -327,7 +289,7 @@ fn MCServer__check_player_activity__connect() {
 }
 #[test]
 fn MCServer__check_player_activity__disconnect() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     MCServer::check_player_activity("[13:53:51 INFO]: Gooxey joined the game", &mcserver).unwrap();
 
     MCServer::check_player_activity("[13:53:51 INFO]: Gooxey left the game", &mcserver).unwrap();
@@ -341,7 +303,7 @@ fn MCServer__check_player_activity__disconnect() {
 }
 #[test]
 fn MCServer__agree_to_eula__already_accepted() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mcserver_lock = mcserver.lock().unwrap();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();
@@ -361,7 +323,7 @@ fn MCServer__agree_to_eula__already_accepted() {
 }
 #[test]
 fn MCServer__agree_to_eula__already_not_accepted() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mcserver_lock = mcserver.lock().unwrap();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();
@@ -381,7 +343,7 @@ fn MCServer__agree_to_eula__already_not_accepted() {
 }
 #[test]
 fn MCServer__agree_to_eula__not_existing() {
-    let mcserver = new_mcserver_no_download::<MyConfig>();
+    let mcserver = new_mcserver_no_download::<Config>();
     let mcserver_lock = mcserver.lock().unwrap();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();

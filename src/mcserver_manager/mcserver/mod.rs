@@ -392,8 +392,8 @@ impl<C: ConfigTrait> MCServer<C> {
             Self::save_output(&line, &mcserver_lock);
 
             if !agreed_to_eula {
-                if let Err(_) = Self::agree_to_eula(&mcserver_lock) {
-                    Self::self_restart(&mcserver);
+                if let Err(_) = Self::agree_to_eula(&mcserver_lock) { // the error returned will always be a fatal one
+                    Self::self_stop(&mcserver);
                     return;
                 }
                 agreed_to_eula = true;
