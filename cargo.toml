@@ -1,6 +1,6 @@
 [package]
 name = "mcm_misc"
-version = "3.0.2"
+version = "3.0.3"
 edition = "2021"
 authors = ["Gooxey"]
 description = "Functions and structs used by applications in the MCManage Network"

@@ -231,7 +231,6 @@ where
         return Ok(());
     }
     /// Restart the given struct. \
-    /// A returned error indicates that this function was unable to start the struct provided.\
     /// \
     /// If you want to restart a given struct and block the thread calling the function, use the [`restart function`](ConcurrentClass::restart).
     fn self_restart(class: &Arc<Mutex<T>>) {
@@ -241,6 +240,19 @@ where
             // if it returns an error the thread will panic
             if let Err(_) = Self::restart(&class_clone) {
                 panic!("The restart function was unable to start the struct.")
+            } 
+        );
+    }
+    /// Stop the given struct. \
+    /// \
+    /// If you want to stop a given struct and block the thread calling the function, use the [`stop function`](ConcurrentClass::stop).
+    fn self_stop(class: &Arc<Mutex<T>>) {
+        let class_clone = class.clone();
+        thread::spawn(move || 
+            // Try to stop the class
+            // if it returns an error the thread will reset the class
+            if let Err(_) = Self::stop(&class_clone, true) {
+                Self::reset(&class_clone);
             } 
         );
     }

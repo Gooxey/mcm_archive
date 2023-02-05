@@ -1,11 +1,13 @@
 # mcm_misc
+
 Functions and structs used by applications in the [MCManage Network](https://github.com/Gooxey/MCManage.git).
 
 ## Description
+
 This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, which tries to make it as easy as possible to create and manage your [Minecraft servers](https://www.minecraft.net).
 
-
 ### General
+
 | Error | Description |
 |-|-|
 | [MCManageError](./src/mcmanage_error.rs) | This error type provides errors used almost anywhere in the [MCManage network](https://github.com/Gooxey/MCManage.git). |
@@ -18,7 +20,6 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 | Trait | Description |
 |-|-|
 | [ConcurrentClass](./src/concurrent_class.rs) | This trait provides standard functions used by every concurrent struct in the [MCManage network](https://github.com/Gooxey/MCManage.git). |
-
 
 ### Message
 
@@ -34,13 +35,11 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 |-|-|
 | [MsgTypeError](./src/message/message_type/msg_type_error.rs) | This error type gets used by the [MessageType enum](./src/message/message_type/mod.rs). |
 
-
 ### Config
 
 | Trait | Description |
 |-|-|
 | [ConfigTrait](./src/config_trait.rs) | Every struct implementing this trait can be used as the application's config. |
-
 
 ### MCServer
 
@@ -61,11 +60,12 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 | Constant | Description |
 |-|-|
 | [MCSERVER_TYPES_DEFAULT](./src/mcserver_manager/mcserver/mcserver_type/mcserver_types_default.rs) | This constant represents the default text in the config/mcserver_types.json file. |
- 
 
 ## Installation
+
 Add the dependency to the `cargo.toml` file:
-```
+
+```text
 [dependencies]
 mcm_misc = { git = "https://github.com/Gooxey/mcm_misc.git", version = "X.Y.Z" }
     or
@@ -73,7 +73,9 @@ mcm_misc = { path = "/path/to/mcm_misc/" }
 ```
 
 ## Requirements
+
 To use this library, [rust and cargo](https://www.rust-lang.org/tools/install) have to be installed.
 
 ## License
+
 [GNU General Public License v3.0](https://choosealicense.com/licenses/gpl-3.0/)
