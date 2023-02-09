@@ -13,6 +13,17 @@ use crate::config_trait::ConfigTrait;
 // The following line is copied from the Minecraft servers EULA
 // By changing the setting below to TRUE you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).
 const AGREE_TO_EULA: bool = false;
+// Note: By changing the following constant, it can happen that the computer running one of these tests shuts down.
+const AUTO_START: bool = false;
+const MCSERVER_RESTART_TIME: bool = false;
+
+fn get_duration(bool: bool) -> Duration {
+    if bool {
+        Duration::new(60, 0)
+    } else {
+        Duration::new(0, 0)
+    }
+}
 
 
 pub struct Config {
@@ -20,7 +31,9 @@ pub struct Config {
     buffsize: u32,
     refresh_rate: Duration,
     max_tries: i32,
-    agree_to_eula: bool
+    agree_to_eula: bool,
+    shutdown_time: Duration,
+    mcserver_restart_time: Duration
 }
 impl ConfigTrait for Config {
     fn new() -> Self {
@@ -29,7 +42,9 @@ impl ConfigTrait for Config {
             buffsize: 100000000,
             refresh_rate: Duration::new(0, 100000000),
             max_tries: 3,
-            agree_to_eula: AGREE_TO_EULA
+            agree_to_eula: AGREE_TO_EULA,
+            shutdown_time: get_duration(AUTO_START),
+            mcserver_restart_time: get_duration(MCSERVER_RESTART_TIME),
         }
     }
     fn addr(&self) -> &SocketAddrV4 {
@@ -46,6 +61,12 @@ impl ConfigTrait for Config {
     }
     fn agree_to_eula(&self) -> &bool {
         &self.agree_to_eula
+    }
+    fn shutdown_time(&self) -> &Duration {
+        &self.shutdown_time
+    }
+    fn mcserver_restart_time(&self) -> &Duration {
+        &self.mcserver_restart_time
     }
 }
 

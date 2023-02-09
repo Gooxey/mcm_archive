@@ -40,6 +40,7 @@ pub mod mcserver_status;
 /// | Method                                                              | Description                                              |
 /// |---------------------------------------------------------------------|----------------------------------------------------------|
 /// | [`new(...) -> Arc<Mutex<MCServer>>`](MCServer::new)                 | Create a new [`MCServer`] instance.                      |
+/// | [`get_name(...) -> Result<..>`](MCServer::get_name)                 | Get the name of the [`MCServer`].                        |
 /// | [`get_status(...) -> Result<..>`](MCServer::get_status)             | Get the status of the [`MCServer`].                      |
 /// | [`get_players(...) -> Result<..>`](MCServer::get_players)           | Get the list of players of the [`MCServer`].             |
 /// | [`start(...) -> Result<..>`](MCServer::start)                       | Start the [`MCServer`].                                  |
@@ -107,7 +108,7 @@ impl<C: ConfigTrait> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
         match Command::new("java")
             .current_dir(&mcserver_lock.path)
             .args(&mcserver_lock.arg)
-            .stderr(Stdio::piped())
+            .stderr(Stdio::inherit())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -156,7 +157,12 @@ impl<C: ConfigTrait> ConcurrentClass<MCServer<C>, C> for MCServer<C> {
 
         if log_messages { log!("info", &name, "Stopping..."); }
 
-        mcserver_lock.status = MCServerStatus::Stopping;
+        // log messages get set by the restart function
+        if log_messages {
+            mcserver_lock.status = MCServerStatus::Stopping;
+        } else {
+            mcserver_lock.status = MCServerStatus::Restarting;
+        }
 
         if let Some(mut minecraft_server ) = mcserver_lock.minecraft_server.take() {
             // send the stop command to the Minecraft server
@@ -263,6 +269,18 @@ impl<C: ConfigTrait> MCServer<C> {
         }))
     }
 
+    /// Get the name of the [`MCServer`].
+    pub fn get_name(mcserver: &Arc<Mutex<MCServer<C>>>) -> Result<String, MCServerError> {
+        let mcserver_lock;
+        if let Some(lock) = Self::get_lock_pure(mcserver, true) {
+            mcserver_lock = lock;
+        } else {
+            Self::self_restart(mcserver);
+            return Err(MCServerError::CriticalError);
+        }
+
+        return Ok(mcserver_lock.name.clone());
+    }
     /// Get the status of the [`MCServer`].
     pub fn get_status(mcserver: &Arc<Mutex<MCServer<C>>>) -> Result<MCServerStatus, MCServerError> {
         let mcserver_lock;
@@ -328,6 +346,7 @@ impl<C: ConfigTrait> MCServer<C> {
                     }
                     Self::send_input(mcserver, input);
                 }
+                Self::save_output(&format!(">> {input}"), &mcserver_lock);
             } else {
                 log!("erro", mcserver_lock.name, "The stdin pipe of this Minecraft server process does not exist. This MCServer will be restarted.");
                 loop {

@@ -11,6 +11,9 @@ use crate::mcmanage_error::MCManageError;
 use crate::log;
 
 
+pub mod macros;
+
+
 /// This trait provides standard functions used by every concurrent struct in the [`MCManage network`](https://github.com/Gooxey/MCManage.git). \
 /// 
 /// ## Required Methods
@@ -37,6 +40,8 @@ use crate::log;
 /// | [`get_lock(...) -> MutexGuard<...>`](ConcurrentClass::get_lock)                     | Get the lock of a given struct.                                                                                                              |
 /// | [`restart(...) -> Result<...>`](ConcurrentClass::restart)                           | Restart the given struct.                                                                                                                    |
 /// | [`self_restart(...)`](ConcurrentClass::self_restart)                                | Restart the given struct.                                                                                                                    |
+/// | [`self_start(...)`](ConcurrentClass::self_start)                                    | Start the given struct.                                                                                                                      |
+/// | [`self_stop(...)`](ConcurrentClass::self_stop)                                      | Stop the given struct.                                                                                                                       |
 pub trait ConcurrentClass<T, C>
 where
     T: marker::Send + 'static,
@@ -56,7 +61,10 @@ where
 
     /// Start a given struct.
     fn start(class: &Arc<Mutex<T>>, log_messages: bool) -> Result<(), MCManageError>;
-    /// Stop a given struct.
+    /// Stop a given struct. \
+    /// \
+    /// Note: If the `log_messages` variable is set to false, it typically means that this function got called during a restart. As a result, this variable can do far more
+    /// than simply disable log messages.
     fn stop(class: &Arc<Mutex<T>>, log_messages: bool) -> Result<(), MCManageError>;
 
 
@@ -240,6 +248,19 @@ where
             // if it returns an error the thread will panic
             if let Err(_) = Self::restart(&class_clone) {
                 panic!("The restart function was unable to start the struct.")
+            } 
+        );
+    }
+    /// Start the given struct. \
+    /// \
+    /// If you want to start a given struct and block the thread calling the function, use the [`start function`](ConcurrentClass::start).
+    fn self_start(class: &Arc<Mutex<T>>) {
+        let class_clone = class.clone();
+        thread::spawn(move || 
+            // Try to stop the class
+            // if it returns an error the thread will reset the class
+            if let Err(_) = Self::start(&class_clone, true) {
+                // Self::reset(&class_clone);
             } 
         );
     }
