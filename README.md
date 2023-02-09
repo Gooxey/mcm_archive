@@ -49,7 +49,7 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 
 | Error | Description |
 |-|-|
-| [MCServerManagerError](./src/mcserver_manager/mcserver_manager_error.rs) |  Errors used by the [`MCServerManager struct`](./src/mcserver_manager/mod.rs). |
+| [MCServerManagerError](./src/mcserver_manager/mcserver_manager_error.rs) |  Errors used by the [MCServerManager struct](./src/mcserver_manager/mod.rs). |
 
 | Constant | Description |
 |-|-|
