@@ -41,6 +41,20 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 |-|-|
 | [ConfigTrait](./src/config_trait.rs) | Every struct implementing this trait can be used as the application's config. |
 
+### MCServerManager
+
+| Struct | Description |
+|-|-|
+| [MCServerManager](./src/mcserver_manager/mod.rs) | This struct is responsible for managing all [MCServers](./src/mcserver_manager/mcserver/mod.rs). ( starting, stopping, ... ) |
+
+| Error | Description |
+|-|-|
+| [MCServerManagerError](./src/mcserver_manager/mcserver_manager_error.rs) |  Errors used by the [`MCServerManager struct`](./src/mcserver_manager/mod.rs). |
+
+| Constant | Description |
+|-|-|
+| [SERVER_LIST_EXAMPLE_DEFAULT](./src/mcserver_manager/server_list_example_default.rs) | This constant represents the default text in the `servers/server_list_example.json` file. |
+
 ### MCServer
 
 | Struct | Description |
@@ -59,7 +73,7 @@ This is part of the [MCManage](https://github.com/Gooxey/MCManage.git) project, 
 
 | Constant | Description |
 |-|-|
-| [MCSERVER_TYPES_DEFAULT](./src/mcserver_manager/mcserver/mcserver_type/mcserver_types_default.rs) | This constant represents the default text in the config/mcserver_types.json file. |
+| [MCSERVER_TYPES_DEFAULT](./src/mcserver_manager/mcserver/mcserver_type/mcserver_types_default.rs) | This constant represents the default text in the `config/mcserver_types.json` file. |
 
 ## Installation
 

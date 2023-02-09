@@ -41,6 +41,21 @@
 //! | [`ConfigTrait`](config_trait::ConfigTrait) | Every struct implementing this trait can be used as the application's config. |
 //! 
 //! 
+//! ### MCServerManager
+//! 
+//! | Struct                                                 | Description                                                                                                                |
+//! |--------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+//! | [`MCServerManager`](mcserver_manager::MCServerManager) | This struct is responsible for managing all [MCServers](mcserver_manager::mcserver::MCServer). ( starting, stopping, ... ) |
+//! 
+//! | Error                                                                                    | Description                                                                       |
+//! |------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+//! | [`MCServerManagerError`](mcserver_manager::mcserver_manager_error::MCServerManagerError) | Errors used by the [`MCServerManager struct`](mcserver_manager::MCServerManager). |
+//! 
+//! | Constant                                                                                                    | Description                                                                               |
+//! |-------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+//! | [`SERVER_LIST_EXAMPLE_DEFAULT`](mcserver_manager::server_list_example_default::SERVER_LIST_EXAMPLE_DEFAULT) | This constant represents the default text in the `servers/server_list_example.json` file. |
+//! 
+//! 
 //! ### MCServer
 //! 
 //! | Struct                                                                    | Description                                                                                                    |
