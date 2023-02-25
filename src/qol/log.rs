@@ -1,11 +1,4 @@
-//! This module provides the log macro. It can be used to print and save a given string to the log file and the console.
-//! 
-//! ## Macros
-//! 
-//! | Macro                           | Description                                                                       |
-//! |---------------------------------|-----------------------------------------------------------------------------------|
-//! | [log_print!](crate::log_print!) | This macro can be used to print a given string to the console.                    |
-//! | [log!](crate::log!)             | This macro can be used to print and save a given string to a file or the console. |
+//! This module provides the [log!](crate::log) and [log_print!](crate::log_print) macro. It can be used to print and save a given string to the log file and the console.
 
 pub extern crate chrono;
 
@@ -34,7 +27,7 @@ pub extern crate chrono;
 #[macro_export]
 macro_rules! log_print {
     ($variant: expr, $sender: expr, $( $arguments: tt ) *) => {
-        print!("{} | ", $crate::log::chrono::Local::now().format("\x1b[2m\x1b[1m%d.%m.%Y\x1b[0m | \x1b[2m\x1b[1m%H:%M:%S\x1b[0m"));
+        print!("{} | ", $crate::qol::log::chrono::Local::now().format("\x1b[2m\x1b[1m%d.%m.%Y\x1b[0m | \x1b[2m\x1b[1m%H:%M:%S\x1b[0m"));
         print!("{} | ", 
             match $variant {
                 "warn" => "\x1b[93m\x1b[1mWARN\x1b[0m",
@@ -77,7 +70,7 @@ macro_rules! log {
         $crate::log_print!($variant, $sender, $( $arguments ) *);
 
         let mut log: String = "".to_string();
-        log += &format!("{} | ", $crate::log::chrono::Local::now().format("%d.%m.%Y | %H:%M:%S"));
+        log += &format!("{} | ", $crate::qol::log::chrono::Local::now().format("%d.%m.%Y | %H:%M:%S"));
         log += &format!("{} | ", 
             match $variant {
                 "warn" => "WARN",

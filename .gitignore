@@ -2,5 +2,5 @@ target/
 .vscode/
 test_files/
 logs/
-config/
 servers/
+/config/

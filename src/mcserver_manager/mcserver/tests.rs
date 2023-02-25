@@ -5,228 +5,170 @@
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::time::Duration;
 use reqwest;
+use tokio::task::spawn_blocking;
+
+use crate::test_functions::cleanup;
 
 use super::*;
-use crate::test_functions::*;
 
 
-fn new_mcserver<C: ConfigTrait>() -> Arc<Mutex<MCServer<C>>> {
+async fn new_mcserver() -> Arc<MCServer> {
     cleanup();
-    download_minecraft_server();
+    spawn_blocking(|| copy_minecraft_server()).await.unwrap();
 
     MCServer::new(
         "myMinecraftServer",
-        "-jar purpur-1.19.3-1876.jar nogui",
-        MCServerType::new("purpur"),
-        &Arc::new(C::new())
+        "-jar server.jar nogui",
+        MCServerType::new("vanilla", "myMinecraftServer"),
+        &Arc::new(Config::new())
     )
 }
-fn new_mcserver_no_download<C: ConfigTrait>() -> Arc<Mutex<MCServer<C>>> {
+fn new_mcserver_no_download() -> Arc<MCServer> {
     cleanup();
     
     MCServer::new(
         "myMinecraftServer",
-        "-jar purpur-1.19.3-1876.jar nogui",
-        MCServerType::new("purpur"),
-        &Arc::new(C::new())
+        "-jar server.jar nogui",
+        MCServerType::new("vanilla", "myMinecraftServer"),
+        &Arc::new(Config::new())
     )
 }
 fn download_minecraft_server() {
-    let mut resp = reqwest::blocking::get("https://api.purpurmc.org/v2/purpur/1.19.3/1876/download").expect("An error occurred while downloading the Minecraft server");
+    if Path::exists(Path::new("test_files/server.jar")) {
+        return;
+    } else {
+        fs::create_dir_all("test_files").expect("An error occurred while creating the test_files dir");
+        
+        // https://api.purpurmc.org/v2/purpur/1.19.3/1876/download
+        let mut data = reqwest::blocking::get("https://piston-data.mojang.com/v1/objects/c9df48efed58511cdd0213c56b9013a7b5c9ac1f/server.jar").expect("An error occurred while downloading the Minecraft server");
+        let mut file = fs::File::create("test_files/server.jar").expect("failed to create file `server.jar`");
+        io::copy(&mut data, &mut file).expect("failed to copy content to file");
+    }
+}
+fn copy_minecraft_server() {
+    download_minecraft_server();
+
     fs::create_dir_all("servers/myMinecraftServer").expect("An error occurred while creating the servers dir");
-    let mut out = File::create("servers/myMinecraftServer/purpur-1.19.3-1876.jar").expect("failed to create file `purpur-1.19.3-1876.jar`");
-    io::copy(&mut resp, &mut out).expect("failed to copy content");
+    fs::copy("test_files/server.jar", "servers/myMinecraftServer/server.jar").expect("Failed to copy the Minecraft server");
 }
 
-// getter / setter functions
-#[test]
-fn MCServer__get_mcserver_type() {
-    let mcserver = new_mcserver_no_download::<Config>();
 
-    let _mcserver_type = MCServer::get_mcserver_type(&MCServer::get_lock_pure(&mcserver, true).unwrap(), &mcserver).unwrap();
-    assert!(true);
-    cleanup();
-    
-    // This should work
+#[tokio::test]
+async fn MCServer__reset() {
+    let mcserver = new_mcserver_no_download();
 
-    // if let MCServer = mcserver_type {
-    // } else {
-    //     assert!(false, "Expected mcserver_type to be MCServerType::Purpur.")
-    // }
-}
-#[test]
-fn MCServer__get_status() {
-    let mcserver = new_mcserver_no_download::<Config>();
+    *mcserver.status.lock().await = Status::Started;
+    *mcserver.players.lock().await = vec!["hello".to_owned()];
 
-    let status = MCServer::get_status(&mcserver).unwrap();
-    
-    if let MCServerStatus::Stopped = status {
-    } else {
-        assert!(false, "Expected MCServerStatus to be MCServerStatus::Stopped.")
+    mcserver.reset().await;
+
+    assert_eq!(*mcserver.status.lock().await, Status::Stopped);
+    assert_eq!(mcserver.players.lock().await.len(), 0);
+    if true == mcserver.alive.load(Relaxed) {
+        assert!(false, "Expected alive to be false.")
     }
-
-    cleanup();
-}
-#[test]
-fn MCServer__get_players() {
-    let mcserver = new_mcserver_no_download::<Config>();
-
-    let players = MCServer::get_players(&mcserver).unwrap();
-    let expected_result: Vec<String> = vec![];
-    assert_eq!(players, expected_result);
-
     cleanup();
 }
 
-#[test]
-fn MCServer__reset() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mut mcserver_lock = mcserver.lock().unwrap();
+#[tokio::test]
+async fn MCServer__start() {
+    let mcserver = new_mcserver().await;
 
-    mcserver_lock.alive = true;
-    mcserver_lock.status = MCServerStatus::Started;
-    mcserver_lock.players = vec!["hello".to_owned()];
-
-    drop(mcserver_lock);
-
-    MCServer::reset(&mcserver);
-
-    let mcserver_lock = mcserver.lock().unwrap();
-
-    assert_eq!(mcserver_lock.alive, false, "Expected alive field to be false.");
-    if let MCServerStatus::Stopped = mcserver_lock.status {
-    } else {
-        assert!(false, "Expected status field to be MCServerStatus::Stopped.");
-    };
-    assert_eq!(mcserver_lock.players.len(), 0, "Expected players field to be vec![].");
-    cleanup();
-}
-#[test]
-fn MCServer__reset_unlocked() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mut mcserver_lock = mcserver.lock().unwrap();
-
-    mcserver_lock.alive = true;
-    mcserver_lock.status = MCServerStatus::Started;
-    mcserver_lock.players = vec!["hello".to_owned()];
-
-    MCServer::reset_unlocked(&mut mcserver_lock);
-
-    assert_eq!(mcserver_lock.alive, false, "Expected alive field to be false.");
-    if let MCServerStatus::Stopped = mcserver_lock.status {
-    } else {
-        assert!(false, "Expected status field to be MCServerStatus::Stopped.");
-    };
-    assert_eq!(mcserver_lock.players.len(), 0, "Expected players field to be vec![].");
-    cleanup();
-}
-
-#[test]
-fn MCServer__start() {
-    let mcserver = new_mcserver::<Config>();
-
-    MCServer::start(&mcserver, false).unwrap();
-    if let Ok(mcserver) = mcserver.lock() {
-        if let None = mcserver.minecraft_server {
-            assert!(false, "Expected minecraft_server field to be filled.");
-        }
-        if let None = mcserver.main_thread {
-            assert!(false, "Expected main_thread field to be filled.");
-        }
-        assert_eq!(mcserver.alive, true, "Expected mcserver field to be true.");
-        if let MCServerStatus::Starting = mcserver.status {
-        } else {
-            assert!(false, "Expected status field to be MCServerStatus::Starting.");
-        }; 
-    } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
+    mcserver.clone().impl_start(false).await.unwrap();
+    if let None = *mcserver.minecraft_server.lock().await {
+        assert!(false, "Expected minecraft_server field to be filled.");
     }
-
-    let status_closure = || -> MCServerStatus {
-        return MCServer::get_lock_pure(&mcserver, true).unwrap().status.clone();
-    };
+    if let None = *mcserver.main_thread.lock().await {
+        assert!(false, "Expected main_thread field to be filled.");
+    }
     loop {
-        if let MCServerStatus::Started = status_closure() {
+        if let Status::Started = *mcserver.status.lock().await {
             break;
-        } else if let MCServerStatus::Stopped = status_closure() {
+        } else if let Status::Stopped = *mcserver.status.lock().await {
             assert!(false, "The MCServer canceled its startup because the EULA was not accepted.");
         }
     }
-    MCServer::stop(&mcserver, false).unwrap();
+    if false == mcserver.alive.load(Relaxed) {
+        assert!(false, "Expected alive to be true.")
+    }
+    mcserver.impl_stop(false, false).await.unwrap();
     cleanup();
 }
-#[test]
-fn MCServer__stop() {
-    let mcserver = new_mcserver::<Config>();
+#[tokio::test]
+async fn MCServer__stop() {
+    let mcserver = new_mcserver().await;
 
-    MCServer::start(&mcserver, false).unwrap();
+    mcserver.clone().impl_start(false).await.unwrap();
     loop {
-        if let Err(_) = MCServer::stop(&mcserver, false) {
+        if let Err(_) = mcserver.clone().impl_stop(false, false).await {
         }
         else {
             break;
         }
     }
-    if let Ok(mcserver) = mcserver.lock() {
-        if let Some(_) = mcserver.minecraft_server {
-            assert!(false, "Expected minecraft_server field to be empty.");
-        }
-        assert_eq!(mcserver.alive, false, "Expected alive field to be false.");
-        if let Some(_) = mcserver.main_thread {
-            assert!(false, "Expected main_thread field to be empty.");
-        }
-    } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
+    assert_eq!(*mcserver.status.lock().await, Status::Stopped);
+    if let Some(_) = *mcserver.minecraft_server.lock().await {
+        assert!(false, "Expected minecraft_server field to be empty.");
+    }
+    if let Some(_) = *mcserver.main_thread.lock().await {
+        assert!(false, "Expected main_thread field to be empty.");
+    }
+    if true == mcserver.alive.load(Relaxed) {
+        assert!(false, "Expected alive to be false.")
     }
     cleanup();
 }
-#[test]
-fn MCServer__restart() {
-    let mcserver = new_mcserver::<Config>();
+#[tokio::test]
+async fn MCServer__restart() {
+    let mcserver = new_mcserver().await;
 
-    MCServer::start(&mcserver, true).unwrap();
-    MCServer::wait_for_start_confirm(&mcserver);
+    mcserver.clone().impl_start(false).await.unwrap();
     loop {
-        if let Err(_) = MCServer::restart(&mcserver) {
+        if let Status::Started = *mcserver.status.lock().await {
+            break;
+        }
+    }
+    loop {
+        if let Err(_) = mcserver.clone().impl_restart().await {
         }
         else {
             break;
         }
     }
-    if let Ok(mcserver) = mcserver.lock() {
-        if let None = mcserver.minecraft_server {
-            assert!(false, "Expected minecraft_server field to be filled.");
-        }
-        if let None = mcserver.main_thread {
-            assert!(false, "Expected main_thread field to be filled.");
-        }
-        assert_eq!(mcserver.alive, true, "Expected mcserver field to be true.");
-        if let MCServerStatus::Started = mcserver.status {
-        } else {
-            assert!(false, "Expected status field to be MCServerStatus::Started.");
-        };  
-    } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
+    if let None = *mcserver.minecraft_server.lock().await {
+        assert!(false, "Expected minecraft_server field to be filled.");
     }
-    MCServer::stop(&mcserver, false).unwrap();
+    if let None = *mcserver.main_thread.lock().await {
+        assert!(false, "Expected main_thread field to be filled.");
+    }
+    if let Status::Started = *mcserver.status.lock().await {
+    } else {
+        assert!(false, "Expected status field to be Status::Started.");
+    };
+    if false == mcserver.alive.load(Relaxed) {
+        assert!(false, "Expected alive to be true.")
+    }
+    mcserver.impl_stop(false, false).await.unwrap();
     cleanup();
 }
 
-#[test]
-fn MCServer__send_input() {
-    let mcserver = new_mcserver::<Config>();
-    let expected_string = " INFO]: Unknown command. Type \"/help\" for help.";
+#[tokio::test]
+async fn MCServer__send_input() {
+    let mcserver = new_mcserver().await;
+    let expected_string = "] [Server thread/INFO]: Unknown or incomplete command, see below for error";
 
-    MCServer::start(&mcserver, false).unwrap();
+    mcserver.clone().impl_start(false).await.unwrap();
     loop {
-        if let MCServerStatus::Started = mcserver.lock().unwrap().status {
+        if let Status::Started = *mcserver.status.lock().await {
             break;
         }
     }
-    MCServer::send_input(&mcserver, "invalid_command");
 
-    thread::sleep(*Config::new().refresh_rate());
+    mcserver.send_input("invalid command").await;
+
+    thread::sleep(Duration::new(1, 0));
 
     let mut out = "".to_string();
     if let Err(_) = File::options().read(true).open("./logs/myMinecraftServer.txt").unwrap().read_to_string(&mut out) {}
@@ -234,124 +176,101 @@ fn MCServer__send_input() {
     if !out.contains(expected_string) {
         assert!(false, "Expected `{expected_string}` in log. Found: {out}")
     }
-    MCServer::stop(&mcserver, false).unwrap();
+    mcserver.impl_stop(false, false).await.unwrap();
     cleanup();
 }
-#[test]
-fn MCServer__save_output() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mcserver_lock = MCServer::get_lock(&mcserver);
+#[tokio::test]
+async fn MCServer__save_output() {
+    let mcserver = new_mcserver_no_download();
 
-    MCServer::save_output("Test line", &mcserver_lock);
+    mcserver.save_output("Test line").await;
 
     let mut out = "".to_string();
     if let Err(_) = File::options().read(true).open("./logs/myMinecraftServer.txt").unwrap().read_to_string(&mut out) {}
 
     assert_eq!(out, "Test line\n")
 }
+#[tokio::test]
+async fn MCServer__check_started() {
+    let mcserver = new_mcserver_no_download();
 
-#[test]
-fn MCServer__get_stdout_pipe() {
-    let mcserver = new_mcserver::<Config>();
-    MCServer::start(&mcserver, false).unwrap();
+    let (tx, _rx) = channel();
 
-    MCServer::get_stdout_pipe(&mut MCServer::get_lock_pure(&mcserver, true).unwrap()).unwrap();
-    cleanup();
-}
-#[test]
-fn MCServer__check_started() {
-    let mcserver = new_mcserver_no_download::<Config>();
-
-    if !MCServer::check_started("[13:40:24 INFO]: Done (10.619s)! For help, type \"help\"", Instant::now(), &mcserver, false).unwrap() {
+    if let Some(_) = mcserver.check_started("[18:21:56] [Server thread/INFO]: Done (16.756s)! For help, type \"help\"", tx).await.unwrap() {
         assert!(false, "Expected function to detect a 'start'");
     }
-    if let Ok(mcserver) = mcserver.lock() {
-        if let MCServerStatus::Started = mcserver.status {
-        } else {
-            assert!(false, "Expected status field to be MCServerStatus::Started.");
-        };
+    if let Status::Started = *mcserver.status.lock().await {
     } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
-    }
+        assert!(false, "Expected status field to be Status::Started.");
+    };
     cleanup();
 }
-#[test]
-fn MCServer__check_player_activity__connect() {
-    let mcserver = new_mcserver_no_download::<Config>();
+#[tokio::test]
+async fn MCServer__check_player_activity__connect() {
+    let mcserver = new_mcserver_no_download();
 
-    MCServer::check_player_activity("[13:53:51 INFO]: Gooxey joined the game", &mcserver).unwrap();
-    if let Ok(mcserver) = mcserver.lock() {
-        assert_eq!(mcserver.players, vec!["Gooxey".to_owned()], "Expected Gooxey to be in the players list.");
-    } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
-    }
+    mcserver.check_player_activity("[13:53:51 INFO]: Gooxey joined the game").await.unwrap();
+    assert_eq!(*mcserver.players.lock().await, vec!["Gooxey".to_owned()], "Expected Gooxey to be in the players list.");
     cleanup();
 }
-#[test]
-fn MCServer__check_player_activity__disconnect() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    MCServer::check_player_activity("[13:53:51 INFO]: Gooxey joined the game", &mcserver).unwrap();
+#[tokio::test]
+async fn MCServer__check_player_activity__disconnect() {
+    let mcserver = new_mcserver_no_download();
+    mcserver.check_player_activity("[13:53:51 INFO]: Gooxey joined the game").await.unwrap();
 
-    MCServer::check_player_activity("[13:53:51 INFO]: Gooxey left the game", &mcserver).unwrap();
-    if let Ok(mcserver) = mcserver.lock() {
-        let vec: Vec<String> = vec![];
-        assert_eq!(mcserver.players, vec, "Expected no one to be in the players list.");
-    } else {
-        assert!(false, "Expected MCServer to not be corrupted.");
-    }
+    mcserver.check_player_activity("[13:53:51 INFO]: Gooxey left the game").await.unwrap();
+    let vec: Vec<String> = vec![];
+    assert_eq!(*mcserver.players.lock().await, vec, "Expected no one to be in the players list.");
     cleanup();
 }
-#[test]
-fn MCServer__agree_to_eula__already_accepted() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mcserver_lock = mcserver.lock().unwrap();
+#[tokio::test]
+async fn MCServer__agree_to_eula__already_accepted() {
+    let mcserver = new_mcserver_no_download();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();
     let mut file = File::options().write(true).create_new(true).open("./servers/myMinecraftServer/eula.txt").unwrap();
     let text = "eula=true";
     io::copy(&mut text.as_bytes(), &mut file).unwrap();
 
-    MCServer::agree_to_eula(&mcserver_lock).unwrap();
+    mcserver.agree_to_eula().await.unwrap();
 
     let mut eula_txt = "".to_string();
-    if let Err(_) = File::options().read(true).open(mcserver_lock.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
+    if let Err(_) = File::options().read(true).open(mcserver.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
 
     if !eula_txt.contains("eula=true") {
         assert!(false, "the eula text has been changed")
     }
     cleanup();
 }
-#[test]
-fn MCServer__agree_to_eula__already_not_accepted() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mcserver_lock = mcserver.lock().unwrap();
+#[tokio::test]
+async fn MCServer__agree_to_eula__already_not_accepted() {
+    let mcserver = new_mcserver_no_download();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();
     let mut file = File::options().write(true).create_new(true).open("./servers/myMinecraftServer/eula.txt").unwrap();
     let text = "eula=false";
     io::copy(&mut text.as_bytes(), &mut file).unwrap();
 
-    MCServer::agree_to_eula(&mcserver_lock).unwrap();
+    mcserver.agree_to_eula().await.unwrap();
 
     let mut eula_txt = "".to_string();
-    if let Err(_) = File::options().read(true).open(mcserver_lock.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
+    if let Err(_) = File::options().read(true).open(mcserver.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
 
     if !eula_txt.contains("eula=true") {
         assert!(false, "the eula text is still false")
     }
     cleanup();
 }
-#[test]
-fn MCServer__agree_to_eula__not_existing() {
-    let mcserver = new_mcserver_no_download::<Config>();
-    let mcserver_lock = mcserver.lock().unwrap();
+#[tokio::test]
+async fn MCServer__agree_to_eula__not_existing() {
+    let mcserver = new_mcserver_no_download();
 
     fs::create_dir_all("./servers/myMinecraftServer").unwrap();
 
-    MCServer::agree_to_eula(&mcserver_lock).unwrap();
+    mcserver.agree_to_eula().await.unwrap();
 
     let mut eula_txt = "".to_string();
-    if let Err(_) = File::options().read(true).open(mcserver_lock.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
+    if let Err(_) = File::options().read(true).open(mcserver.path.clone() + "/eula.txt").unwrap().read_to_string(&mut eula_txt) { }
 
     if !eula_txt.contains("eula=true") {
         assert!(false, "the eula text is still false")

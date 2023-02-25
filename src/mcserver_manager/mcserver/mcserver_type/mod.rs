@@ -2,16 +2,17 @@
 //! corresponding to different situations, like a player joining or leaving.
 
 
-use std::{io, path::Path};
+use std::io;
+use std::path::Path;
 use std::fs::{self, File};
+use async_recursion::async_recursion;
 use serde_json::Value;
-use mcserver_type_error::MCServerTypeError;
 use mcserver_types_default::MCSERVER_TYPES_DEFAULT;
 use crate::log;
+use crate::mcmanage_error::MCManageError;
 
 
 mod tests;
-pub mod mcserver_type_error;
 pub mod mcserver_types_default;
 
 
@@ -19,7 +20,7 @@ pub mod mcserver_types_default;
 /// To be exact, this struct is responsible for reading the `config/mcserver_types.json` file and providing the [`MCServer`](super::MCServer) with strings corresponding to 
 /// different situations, like a player joining or leaving.
 /// 
-/// ## Methods
+/// # Methods
 /// 
 /// | Method                                                                               | Description                                                  |
 /// |--------------------------------------------------------------------------------------|--------------------------------------------------------------|
@@ -30,26 +31,30 @@ pub mod mcserver_types_default;
 /// | [`get_player_left(...) -> Result<...>`](MCServerType::get_player_left)               | Get this Minecraft server types player left message.         |
 /// | [`get_player_name_joined(...) -> Result<...>`](MCServerType::get_player_name_joined) | Get the name of the player that joined in the line provided. |
 /// | [`get_player_name_left(...) -> Result<...>`](MCServerType::get_player_name_left)     | Get the name of the player that left in the line provided.   |
+#[derive(Clone)]
 pub struct MCServerType {
-    /// The type of MCServer
-    server_type: String
+    server_type: String,
+    parent: String // This struct is always held by a MCServer
 }
 impl MCServerType {
-    /// Create a new [`MCServerType`](MCServerType).
+    /// Create a new [`MCServerType`].
     /// 
-    /// ## Parameter
+    /// # Parameters
     /// 
-    /// To see all available options see the `config/mcserver_types.json` file. \
-    /// To see the standard options see the [`MCSERVER_TYPES_DEFAULT constant`](mcserver_types_default::MCSERVER_TYPES_DEFAULT).
-    pub fn new(server_type: &str) -> Self {
+    /// | Parameter           | Description                                                                                                                                                                                      |
+    /// |---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+    /// | `server_type: &str` | To see all available options see the `config/mcserver_types.json` file. To see the standard options see the [`MCSERVER_TYPES_DEFAULT constant`](mcserver_types_default::MCSERVER_TYPES_DEFAULT). |
+    /// | `parent: &str`      | The name of the [`MCServer`](super::MCServer) this [`MCServerType`] was meant for.                                                                                                               |
+    pub fn new(server_type: &str, parent: &str) -> Self {
         Self {
-            server_type: server_type.to_string()
+            server_type: server_type.to_string(),
+            parent: parent.to_string()
         }
     }
 
     /// Rename the invalid `config/mcserver_types.json` file to `config/invalid_mcserver_types.json` or something similar, and generate the default `config/mcserver_types.json` file,
     /// which is described in the [`MCSERVER_TYPES_DEFAULT constant`](mcserver_types_default::MCSERVER_TYPES_DEFAULT).
-    fn generate_valid_mcserver_types_file() {
+    fn generate_valid_mcserver_types_file(&self) {
         // rename the invalid file so that data will not get lost
         let mut invalid_file_name;
         let mut i = 0;
@@ -78,10 +83,10 @@ impl MCServerType {
             }
         }
         if no_file_found {
-            log!("warn", "MCServerType", "No `config/mcserver_types.json` file could be found. A new one will be generated.");
+            log!("warn", self.parent, "No `config/mcserver_types.json` file could be found. A new one will be generated.");
         } else {
-            log!("warn", "MCServerType", "The mcserver types config at `config/mcserver_types.json` is invalid.");
-            log!("warn", "MCServerType", "A new file will be generated, and the old one will be renamed to `{invalid_file_name}`.");
+            log!("warn", self.parent, "The mcserver types config at `config/mcserver_types.json` is invalid.");
+            log!("warn", self.parent, "A new file will be generated, and the old one will be renamed to `{invalid_file_name}`.");
         }
 
         // generate the valid file
@@ -94,18 +99,18 @@ impl MCServerType {
     /// \
     /// This method only works if the message to get is a single string. For messages containing multiple strings, use the
     /// [`get_message_vector method`](Self::get_message_vector).
-    fn get_message(&self, identifier: &str) -> Result<Value, MCServerTypeError> {
+    fn get_message(&self, identifier: &str) -> Result<Value, MCManageError> {
         // read a file given to a json object
         let mcserver_type_json: Value;
         if let Ok(file) = fs::read_to_string("config/mcserver_types.json") {
             if let Ok(json) = serde_json::from_str(&file) {
                 mcserver_type_json = json;
             } else {
-                Self::generate_valid_mcserver_types_file();
+                self.generate_valid_mcserver_types_file();
                 return Ok(Self::get_message(&self, identifier)?);
             }
         } else {
-            Self::generate_valid_mcserver_types_file();
+            self.generate_valid_mcserver_types_file();
             return Ok(Self::get_message(&self, identifier)?);
         }
 
@@ -114,11 +119,11 @@ impl MCServerType {
             if let Some(message) = server.get(identifier) {
                 return Ok(message.to_owned())
             } else {
-                Self::generate_valid_mcserver_types_file();
+                self.generate_valid_mcserver_types_file();
                 return Ok(Self::get_message(&self, identifier)?);
             }
         } else {
-            return Err(MCServerTypeError::ServerTypeNotFound(self.server_type.clone()));
+            return Err(MCManageError::NotFound);
         }
     }
     /// Get a message from the `config/mcserver_types.json` file, which can be found under this MCServer's type ( vanilla, purpur, etc. ) and its
@@ -126,7 +131,7 @@ impl MCServerType {
     /// \
     /// This method is only useful if the message to be retrieved contains multiple strings. For messages containing a single string, use the
     /// [`get_message method`](Self::get_message).
-    fn get_message_vector(&self, identifier: &str) -> Result<Vec<String>, MCServerTypeError> {
+    fn get_message_vector(&self, identifier: &str) -> Result<Vec<String>, MCManageError> {
         // convert the message got into a vector of strings and return it
         let mut final_vec: Vec<String> = vec![];
         if let Some (vec) = Self::get_message(&self, identifier)?.as_array() {
@@ -134,38 +139,39 @@ impl MCServerType {
                 if let Some(string) = item.as_str() {
                     final_vec.push(string.to_string());
                 } else {
-                    Self::generate_valid_mcserver_types_file();
+                    self.generate_valid_mcserver_types_file();
                     return Ok(Self::get_message_vector(&self, identifier)?);
                 }
             }
             return Ok(final_vec);
         } else {
-            Self::generate_valid_mcserver_types_file();
+            self.generate_valid_mcserver_types_file();
             return Ok(Self::get_message_vector(&self, identifier)?);
         }
     }
     
     /// Get this Minecraft server types started message.
-    pub fn get_started(&self) -> Result<Vec<String>, MCServerTypeError> {
+    pub async fn get_started(&self) -> Result<Vec<String>, MCManageError> {
         return Self::get_message_vector(&self, "started");
     }
     /// Get this Minecraft server types player joined message.
-    pub fn get_player_joined(&self) -> Result<Vec<String>, MCServerTypeError> {
+    pub async fn get_player_joined(&self) -> Result<Vec<String>, MCManageError> {
         return Self::get_message_vector(&self, "player_joined");
     }
     /// Get this Minecraft server types player left message.
-    pub fn get_player_left(&self) -> Result<Vec<String>, MCServerTypeError> {
+    pub async fn get_player_left(&self) -> Result<Vec<String>, MCManageError> {
         return Self::get_message_vector(&self, "player_left");
     }
 
     /// Get the name of the player that joined in the line provided.
-    pub fn get_player_name_joined(&self, line: &str) -> Result<String, MCServerTypeError> {
+    #[async_recursion]
+    pub async fn get_player_name_joined(&self, line: &str) -> Result<String, MCManageError> {
         let player_name_pos;
         if let Some(pos) = Self::get_message(&self, "player_name_joined_pos")?.as_u64() {
             player_name_pos = pos;
         } else {
-            Self::generate_valid_mcserver_types_file();
-            return Ok(Self::get_player_name_joined(&self, line)?);
+            self.generate_valid_mcserver_types_file();
+            return Ok(Self::get_player_name_joined(&self, line).await?);
         }
 
         let mut i: u64 = 0;
@@ -183,17 +189,18 @@ impl MCServerType {
         if let Some(player_name) = line_iter.next() {
             return Ok(player_name);
         } else {
-            return Err(MCServerTypeError::NotAPlayerLine);
+            return Err(MCManageError::NotFound);
         }
     }
     /// Get the name of the player that left in the line provided.
-    pub fn get_player_name_left(&self, line: &str) -> Result<String, MCServerTypeError> {
+    #[async_recursion]
+    pub async fn get_player_name_left(&self, line: &str) -> Result<String, MCManageError> {
         let player_name_pos;
         if let Some(pos) = Self::get_message(&self, "player_name_left_pos")?.as_u64() {
             player_name_pos = pos;
         } else {
-            Self::generate_valid_mcserver_types_file();
-            return Ok(Self::get_player_name_left(&self, line)?);
+            self.generate_valid_mcserver_types_file();
+            return Ok(Self::get_player_name_left(&self, line).await?);
         }
 
         let mut i: u64 = 0;
@@ -211,12 +218,7 @@ impl MCServerType {
         if let Some(player_name) = line_iter.next() {
             return Ok(player_name);
         } else {
-            return Err(MCServerTypeError::NotAPlayerLine);
+            return Err(MCManageError::NotFound);
         }
-    }
-}
-impl Clone for MCServerType {
-    fn clone(&self) -> Self {
-        Self::new(&self.server_type)
     }
 }

@@ -2,13 +2,15 @@
 #![cfg(test)]
 
 
-use super::{*, mcserver::mcserver_status::MCServerStatus};
+use tokio::task::spawn_blocking;
+
 use crate::test_functions::*;
+use super::*;
 
 
-fn test_start() -> Arc<Mutex<MCServerManager<Config>>> {
+async fn test_start() -> Arc<MCServerManager> {
     generate_server_list();
-    generate_MCServerManager()
+    spawn_blocking(|| generate_MCServerManager()).await.unwrap()
 }
 fn generate_server_list() {
     cleanup();
@@ -24,10 +26,10 @@ fn generate_server_list() {
     let mut server_list_file = File::options().write(true).create_new(true).open("servers/server_list.json").unwrap();
     io::copy(&mut content.as_bytes(), &mut server_list_file).unwrap();
 }
-fn generate_MCServerManager() -> Arc<Mutex<MCServerManager<Config>>> {
+fn generate_MCServerManager() -> Arc<MCServerManager> {
     download_minecraft_server();
 
-    MCServerManager::new(Arc::new(Config::new())).unwrap()
+    MCServerManager::new(Arc::new(Config::new()))
 }
 fn download_minecraft_server() {
     let mut resp = reqwest::blocking::get("https://api.purpurmc.org/v2/purpur/1.19.3/1876/download").expect("An error occurred while downloading the Minecraft server");
@@ -37,19 +39,17 @@ fn download_minecraft_server() {
 }
 
 // the following two functions will also test `get_server_parameter` and `generate_valid_server_list_file`
-#[test]
-fn MCServerManager__load_mcserver_list_valid_file() {
-    let mcserver_manager = test_start();
+#[tokio::test]
+async fn MCServerManager__load_mcserver_list_valid_file() {
+    let mcserver_manager = test_start().await;
 
-    MCServerManager::load_mcserver_list(&mcserver_manager).unwrap();
+    mcserver_manager.load_mcserver_list().await.unwrap();
 
-    let mcserver_list = &MCServerManager::get_lock(&mcserver_manager).mcserver_list;
-
-    assert_eq!(mcserver_list.len(), 1, "The function should only have captured one server.");
+    assert_eq!(mcserver_manager.mcserver_list.lock().await.len(), 1, "The function should only have captured one server.");
     cleanup();
 }
-#[test]
-fn MCServerManager__load_mcserver_list_invalid_file() {
+#[tokio::test]
+async fn MCServerManager__load_mcserver_list_invalid_file() {
     cleanup();
     let content = "{
         \"0\": {
@@ -62,15 +62,18 @@ fn MCServerManager__load_mcserver_list_invalid_file() {
     let mut server_list_file = File::options().write(true).create_new(true).open("servers/server_list.json").unwrap();
     io::copy(&mut content.as_bytes(), &mut server_list_file).unwrap();
     
-    let mcserver_manager = Arc::new(Mutex::new(MCServerManager {
-        mcserver_list: vec![],
+    let mcserver_manager = Arc::new(MCServerManager {
+        name: "MCServerManager".to_string(),
         config: Arc::new(Config::new()),
-        main_thread: None,
-        alive: false
-    }));
+
+        alive: AtomicBool::new(false),
+        status: Status::Stopped.into(),
+        mcserver_list: vec![].into(),
+        main_thread: None.into()
+    });
 
 
-    MCServerManager::load_mcserver_list(&mcserver_manager).unwrap_err();
+    mcserver_manager.load_mcserver_list().await.unwrap_err();
 
     File::options().write(true).create_new(true).open("servers/server_list.json").unwrap();
     File::options().write(true).create_new(true).open("servers/invalid_server_list.json").unwrap_err();
@@ -78,39 +81,44 @@ fn MCServerManager__load_mcserver_list_invalid_file() {
     cleanup();
 }
 
-#[test]
-fn MCServerManager__get_mcserver() {
-    let mcserver_manager = test_start();
+#[tokio::test]
+async fn MCServerManager__get_mcserver() {
+    let mcserver_manager = test_start().await;
 
-    let mcserver = MCServerManager::get_mcserver(&mcserver_manager, "myMinecraftServer").unwrap();
+    mcserver_manager.clone().impl_start(false).await.unwrap();
 
-    assert_eq!(MCServer::get_name(&mcserver).unwrap(), "myMinecraftServer");
+    let mcserver = mcserver_manager.get_mcserver("myMinecraftServer").await.unwrap();
+
+    assert_eq!(mcserver.name(), "myMinecraftServer");
+    mcserver_manager.impl_stop(false, false).await.unwrap();
     cleanup();
 }
-// set the `src/test_functions::AUTO_START` const to true to test the shutdown of the own machine in 1 min
-// the `src/test_functions::AGREE_TO_EULA` const needs to be true
-// the `src/test_functions::MCSERVER_RESTART_TIME` const needs to be true
-#[test]
-fn MCServerManager__main() { // this is a test for almost every function in the MCServerManager struct
-    let mcserver_manager = test_start();
+// set the `src/config::Config::shutdown_time` field to 1min to test the shutdown of the own machine
+// the `src/config::AGREE_TO_EULA` const needs to be true
+// the `src/config::Config::mcserver_restart_time` const needs to be 1min
+#[tokio::test]
+async fn MCServerManager__main() { // this is a test for almost every function in the MCServerManager struct
+    let mcserver_manager = test_start().await;
 
-    MCServerManager::start(&mcserver_manager, true).unwrap();
+    mcserver_manager.clone().impl_start(false).await.unwrap();
 
-    let mcserver = MCServerManager::get_mcserver(&mcserver_manager, "myMinecraftServer").unwrap();
+    let mcserver = mcserver_manager.get_mcserver("myMinecraftServer").await.unwrap();
     let start_time = Instant::now();
     loop {
-        if let MCServerStatus::Restarting = MCServer::get_status(&mcserver).unwrap() {
+        if Status::Restarting == mcserver.status().await {
             break;
         }
         if Instant::now() - start_time > Duration::new(100, 0) {
             assert!(false, "The MCServerManager took to long to restart.");
         }
+        sleep(Duration::new(1, 0)).await;
     }
     loop {
-        if let MCServerStatus::Started = MCServer::get_status(&mcserver).unwrap() {
+        if Status::Started == mcserver.status().await {
             break;
         }
+        sleep(Duration::new(1, 0)).await;
     }
-
-    MCServerManager::stop(&mcserver_manager, true).unwrap();
+    mcserver_manager.impl_stop(false, false).await.unwrap();
+    cleanup();
 }
