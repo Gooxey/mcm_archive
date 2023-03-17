@@ -1,6 +1,6 @@
-server/lobby/*
-server/Example Server/*
-server/proxy/*
+**/server/lobby/*
+**/server/Example_Server/*
+**/server/proxy/*
 
 !config/
 !mods/
