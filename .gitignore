@@ -1,0 +1,14 @@
+server/lobby/*
+server/Example Server/*
+server/proxy/*
+
+!config/
+!mods/
+!plugins/
+!server.jar
+!eula.txt
+!server.properties
+!fabric-server-launch.jar
+!fabric-server-launcher.properties
+!velocity-1.1.5.jar
+!velocity.toml
