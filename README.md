@@ -1,6 +1,6 @@
 # mcm_archive
 
-As the name suggests, this repository is an archive of all iterations of the MCManage application.
+As the name suggests, this repository is an archive of all iterations of the [MCManage application](https://github.com/Gooxey/MCManage).
 
 The now-following versions are sorted from latest to oldest.
 
