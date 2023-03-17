@@ -15,3 +15,7 @@ This iteration consisted of:
 - The MCManage repo, which just contained [this readme file](./rust.md) and a [GPL-3.0 license](https://choosealicense.com/licenses/gpl-3.0/).
 
 For more information on the repos, see either [this readme file](./rust.md) or, in the case of the mcm_misc library, [its readme file](https://github.com/Gooxey/mcm_archive/tree/mcm_misc/README.md).
+
+## The Python version
+
+This version can be found [here](https://github.com/Gooxey/mcm_archive/tree/python).
